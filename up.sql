@@ -1,11 +1,11 @@
-CREATE TABLE user (
+CREATE TABLE IF NOT EXISTS user (
     id INTEGER PRIMARY KEY,
     username TEXT NOT NULL,
     password TEXT NOT NULL,
     salt TEXT NOT NULL
 );
 
-CREATE TABLE event (
+CREATE TABLE IF NOT EXISTS event (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
@@ -13,22 +13,22 @@ CREATE TABLE event (
     FOREIGN KEY(creator) REFERENCES user(id)
 );
 
-CREATE TABLE participant (
+CREATE TABLE IF NOT EXISTS participant (
     event INTEGER NOT NULL,
     user INTEGER NOT NULL,
     FOREIGN KEY(event) REFERENCES event(id),
     FOREIGN KEY(user) REFERENCES user(id)
 );
 
-CREATE TABLE requirement (
+CREATE TABLE IF NOT EXISTS requirement (
     id INTEGER PRIMARY KEY,
-    descirption TEXT NOT NULL,
-    size INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
     event INTEGER NOT NULL,
     FOREIGN KEY(event) REFERENCES event(id)
 );
 
-CREATE TABLE fullfillment (
+CREATE TABLE IF NOT EXISTS fullfillment (
     id INTEGER PRIMARY KEY,
     user INTEGER NOT NULL,
     requirement INTEGER NOT NULL,

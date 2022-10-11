@@ -5,7 +5,8 @@ pub enum AppError {
   DB(String),
   Server(String),
   NotFound(String),
-  Unauthorized(String)
+  Unauthorized(String),
+  BadRequest(String),
 }
 
 impl IntoResponse for AppError {
@@ -33,6 +34,12 @@ impl IntoResponse for AppError {
         (
           StatusCode::NOT_FOUND,
           format!("{} - {}", "Not Found", msg)
+        )
+      },
+      AppError::BadRequest(msg) => {
+        (
+          StatusCode::BAD_REQUEST,
+          format!("{} - {}", "Bad Request", msg)
         )
       }
     };

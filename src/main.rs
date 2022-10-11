@@ -1,19 +1,28 @@
-use auth::{generate_salt, get_salted_password, generate_jwt};
 use axum::{
-    routing::{get, post},
-    Json, Router, Extension, middleware,
+  http::Method,
+  routing::{get, post, put, delete},
+  Router, Extension, middleware,
 };
 use dotenvy::dotenv;
 use tracing_subscriber::{EnvFilter, prelude::*};
-use utils::{read_file, shutdown_signal};
+use utils::{shutdown_signal};
+use user::{authentificate};
 use std::{env};
-use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use sqlx::{SqlitePool, Pool, Sqlite};
+use db_modeling::{database_down, database_up};
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
+use tower::ServiceBuilder;
 
 mod error;
 mod utils;
 mod auth;
+mod db_modeling;
+mod user;
+mod event;
+mod requirement;
+mod fullfillment;
 
 type DbState = Pool<Sqlite>;
 
@@ -31,22 +40,52 @@ async fn main() {
     tracing::debug!("{key}: {value}");
   }
 
+  let cors = CorsLayer::new()
+    .allow_methods(vec![Method::GET, Method::POST, Method::DELETE, Method::PUT])
+    .allow_headers(Any)
+    .allow_origin(Any);
+
   let pool = SqlitePool::connect(&env::var("DATABASE_URL").unwrap()).await.unwrap();
 
   let public = Router::new()
     .route("/up", get(database_up))
     .route("/down", get(database_down))
-    .route("/register", post(create_user))
-    .route("/authentificate", post(authentificate));
+    .route("/register", post(user::create))
+    .route("/authentificate", post(authentificate))
+    ;
 
   let private = Router::new()
     .route("/hello", get(hello))
-    .route_layer(middleware::from_fn(auth::auth));
+    .route("/user/:id", get(user::single))
+    .route("/user/:id", put(user::update))
+    .route("/user/:id", delete(user::delete))
+    .route("/user", get(user::all))
+
+    .route("/event", post(event::create))
+    .route("/event/:id", get(event::single))
+    .route("/event/:id", put(event::update))
+    .route("/event/:id", delete(event::delete))
+    .route("/event", get(event::all))
+
+    .route("/requirement", post(requirement::create))
+    .route("/requirement/:id", put(requirement::update))
+    .route("/requirement/:id", delete(requirement::delete))
+
+    .route("/fullfillment", post(fullfillment::create))
+    .route("/fullfillment/:id", delete(fullfillment::delete))
+
+    .route_layer(middleware::from_fn(auth::auth))
+    ;
 
   let app = Router::new()
       .merge(public)
       .merge(private)
-      .layer(Extension(pool));
+      .layer(
+        ServiceBuilder::new()
+          .layer(TraceLayer::new_for_http())
+          .layer(Extension(cors))
+          .layer(Extension(pool))
+      );
 
   let addr = SocketAddr::from(([127, 0, 0, 1], 5000));
   tracing::info!("listening on {}", addr);
@@ -61,99 +100,4 @@ async fn main() {
 
 async fn hello() -> &'static str {
   "Hello, World!"
-}
-
-async fn database_up(
-  Extension(pool): Extension<DbState>
-) -> Result<(), error::AppError> {
-  let sql = read_file("up.sql")?;
-  sqlx::query(&sql).execute(&pool).await?;
-
-  Ok(())
-}
-
-async fn database_down(
-  Extension(pool): Extension<DbState>
-) -> Result<(), error::AppError> {
-  let sql = read_file("down.sql")?;
-  sqlx::query(&sql).execute(&pool).await?;
-  Ok(())
-}
-
-async fn create_user(
-  Json(payload): Json<CreateUser>,
-  Extension(pool): Extension<DbState>,
-) -> Result<Json<User>, error::AppError> {
-  let salt = generate_salt();
-  let password = get_salted_password(&payload.password, &salt.clone());
-
-  let id = sqlx::query!(
-      r#"
-  INSERT INTO user ( username, password, salt )
-  VALUES ( ?1, ?2, ?3 )
-      "#,
-      payload.username, password, salt
-  )
-  .execute(&pool)
-  .await?
-  .last_insert_rowid();
-
-  let user = User {
-    id,
-    username: payload.username,
-  };
-
-  Ok(Json(user))
-}
-
-pub async fn authentificate(
-  Json(data): Json<UserAuthReqData>,
-  Extension(pool): Extension<DbState>,
-) -> Result<Json<UserAuthRespData>, error::AppError> {
-  let user_db = sqlx::query!(
-      "
-      SELECT id, password, salt
-      FROM user
-      WHERE username = ?
-      ",
-      data.username
-  )
-  .fetch_one(&pool)
-  .await?;
-
-  let calculated_password = get_salted_password(&data.password, &user_db.salt);
-  if calculated_password != user_db.password {
-    return Err(error::AppError::Unauthorized(String::from("incorrect password")));
-  }
-
-  let resp = UserAuthRespData {
-    id: 0,
-    token: generate_jwt(format!("{}", user_db.id))
-  };
-  Ok::<Json<UserAuthRespData>, error::AppError>(Json(resp))
-
-}
-
-#[derive(Deserialize)]
-struct CreateUser {
-  username: String,
-  password: String,
-}
-
-#[derive(Serialize)]
-struct User {
-  id: i64,
-  username: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct UserAuthReqData {
-  username: String,
-  password: String,
-}
-
-#[derive(Serialize, Debug, Clone)]
-pub struct UserAuthRespData {
-  id: i64,
-  token: String,
 }

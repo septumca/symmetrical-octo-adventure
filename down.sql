@@ -1,9 +1,5 @@
-DROP TABLE user;
-
-DROP TABLE event;
-
-DROP TABLE participant;
-
-DROP TABLE requirement;
-
 DROP TABLE fullfillment;
+DROP TABLE requirement;
+DROP TABLE participant;
+DROP TABLE event;
+DROP TABLE user;

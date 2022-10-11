@@ -1,0 +1,122 @@
+### Get hello
+GET http://localhost:5000/hello HTTP/1.1
+
+######################################## DB ####################################
+
+### DB up
+GET http://localhost:5000/up HTTP/1.1
+
+### DB down
+GET http://localhost:5000/down HTTP/1.1
+
+###################################### USERS ###################################
+
+### create - password sha256 of 'password'
+POST http://localhost:5000/register HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "Janko Hrasko",
+  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+}
+
+### Authentificate
+POST http://localhost:5000/authentificate HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "Janko Hrasko",
+  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+}
+
+### all users
+GET http://localhost:5000/user HTTP/1.1
+Content-Type: application/json
+
+### single user
+GET http://localhost:5000/user/1 HTTP/1.1
+Content-Type: application/json
+
+### update
+PUT http://localhost:5000/user/1 HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "Jozef Mak"
+}
+
+### delete
+DELETE http://localhost:5000/user/1 HTTP/1.1
+Content-Type: application/json
+
+###################################### EVENTS ##################################
+
+### create
+POST http://localhost:5000/event HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "my first event",
+  "description": "some description of my event",
+  "creator": 1
+}
+
+### all events
+GET http://localhost:5000/event HTTP/1.1
+Content-Type: application/json
+
+### single event
+GET http://localhost:5000/event/1 HTTP/1.1
+Content-Type: application/json
+
+### update
+PUT http://localhost:5000/event/1 HTTP/1.1
+Content-Type: application/json
+
+{
+  "description": "updated description"
+}
+
+### delete
+DELETE http://localhost:5000/event/1 HTTP/1.1
+Content-Type: application/json
+
+###################################### REQUIREMENTS ##################################
+
+### create
+POST http://localhost:5000/requirement HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "catering",
+  "description": "i need someone to bring f00d",
+  "event": 1
+}
+
+### update
+PUT http://localhost:5000/requirement/1 HTTP/1.1
+Content-Type: application/json
+
+{
+  "description": "updated description"
+}
+
+### delete
+DELETE http://localhost:5000/requirement/1 HTTP/1.1
+Content-Type: application/json
+
+###################################### FULLFILLMENTS ##################################
+
+### create
+POST http://localhost:5000/fullfillment HTTP/1.1
+Content-Type: application/json
+
+{
+  "requirement": 1,
+  "user": 1
+}
+
+
+### delete
+DELETE http://localhost:5000/fullfillment/1 HTTP/1.1
+Content-Type: application/json
