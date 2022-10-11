@@ -1,0 +1,327 @@
+{
+  "db": "SQLite",
+  "0f0b4518d7f2f399f8bb763f7962aec77d1eb8c0f90b355ab42ae331ee071f40": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  DELETE FROM event\n  WHERE ID = ?1\n      "
+  },
+  "39a9cac7e25d8ebe43a9469be2052ef4c743d9301ebba2c0f40780f24e257517": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "name",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "description",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "creator",
+          "ordinal": 3,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  SELECT id, name, description, creator FROM event\n  WHERE ID = ?1\n      "
+  },
+  "3e99d97537f676bc6df428f4533a64688813f2ef935dc659a121796c28710c66": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "password",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "salt",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n      SELECT id, password, salt\n      FROM user\n      WHERE username = ?\n      "
+  },
+  "488dd1bb09c57bf1ac65e6304b774968b42afc04a13ed2adce9f5170ea01aa96": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "username",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT id, username FROM user"
+  },
+  "4ca4af3c5e638d9c790d53f2b252b1ea5e7130d92088e8c2a7d80eae01428a96": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "requirement",
+          "ordinal": 1,
+          "type_info": "Int64"
+        },
+        {
+          "name": "user",
+          "ordinal": 2,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  SELECT id, requirement, user FROM fullfillment\n  WHERE fullfillment.requirement in (\n      select id from requirement\n      where requirement.event = ?1\n    )\n      "
+  },
+  "59eab0f8d7226926e5ac450483de7d16b6014ab2ea42fbb1e4a20f434936b773": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n  UPDATE user SET username = ?1\n  WHERE ID = ?2\n      "
+  },
+  "6e4d96ac6286a23dc96525d4fbb36ec17aca1bbd05ac24a426bfc57686ba8837": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "name",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "description",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  SELECT id, name, description FROM requirement\n  WHERE requirement.event = ?1\n      "
+  },
+  "70a82ddea2c01db2b264c6330fce4f67dbd4dae870fecc28557d592170439cc5": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  DELETE FROM fullfillment\n  WHERE ID = ?1\n      "
+  },
+  "a894d49bffcf651e38048def05c538f576c0583c65ffd08e41446334481ac530": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 3
+      }
+    },
+    "query": "\n  INSERT INTO requirement ( name, description, event )\n  VALUES ( ?1, ?2, ?3 )\n      "
+  },
+  "b0a9bd60c5d72321a1497430ca09ba626f0a4af74bb99feaa669618dbd5150af": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "name",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "description",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "creator",
+          "ordinal": 3,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT id, name, description, creator FROM event"
+  },
+  "b2099934b58b7602e77c27028dfdd1e1a01486e48d3205646ae311bb48e48a63": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "username",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  SELECT id, username FROM user\n  JOIN participant on participant.user = user.id\n  WHERE participant.event = ?1\n      "
+  },
+  "ba3b9cab8a607e40a81ec77b933679cf8a3a3b488593a813df0c5a7395e330d5": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  DELETE FROM requirement\n  WHERE ID = ?1\n      "
+  },
+  "bced19453e823413f91cb8cc32c1ea0f9f4e09d01dd1bdf836e3b09486d136b2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "username",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  SELECT id, username FROM user\n  WHERE ID = ?1\n      "
+  },
+  "dfbea093aad14c4e8806c3d74613c01b64aa2f9b6b212eb06cdfb40a83db3d46": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  DELETE FROM user\n  WHERE ID = ?1\n      "
+  },
+  "ef836714a28d17dbf7bc8eca3daa0eafbb3f6da938225cc8559d5924a23373ca": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 3
+      }
+    },
+    "query": "\n  INSERT INTO event ( name, description, creator )\n  VALUES ( ?1, ?2, ?3 )\n      "
+  },
+  "f405c11cd8314bc46a1ed08d9adf7ae2829e4739b14d58eae2a91433ff5b5642": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 3
+      }
+    },
+    "query": "\n  INSERT INTO user ( username, password, salt )\n  VALUES ( ?1, ?2, ?3 )\n      "
+  },
+  "feb8436985170d140ef6a6a908e148e21f5e8581bfa89bb82d39a787104504ea": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n  INSERT INTO fullfillment ( requirement, user )\n  VALUES ( ?1, ?2 )\n      "
+  }
+}
