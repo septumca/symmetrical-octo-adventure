@@ -4,6 +4,7 @@ use jsonwebtoken::{EncodingKey, Header, encode, decode, DecodingKey, Validation}
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
+use std::{env};
 
 pub const ISSUER: &str = "zmtwc";
 
@@ -65,6 +66,7 @@ pub fn generate_jwt(user_id: String) -> String {
   encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref())).expect("jwt token to be generated")
 }
 
+#[allow(dead_code)]
 fn token_is_valid(token: String) -> bool {
   let token = decode::<Claims>(&token, &DecodingKey::from_secret(get_secret().as_ref()), &Validation::default());
   token.is_ok() && token.expect("token should be valid").claims.iss == *ISSUER
@@ -75,6 +77,7 @@ pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
   next.run(req).await
 }
 
+#[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
   let token = req.headers()
@@ -94,6 +97,7 @@ pub fn get_secret() -> String {
   String::from("mysecret")
 }
 
+#[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 pub fn get_secret() -> String {
   env::var("JWT_SECRET").expect("JWT_SECRET must be set")
