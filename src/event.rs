@@ -3,7 +3,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, db_modeling::Updatable, requirement::Requirement, fullfillment::Fullfillment};
+use crate::{DbState, error::{self, AppError}, db_modeling::{Updatable, self}};
 
 pub async fn create(
   Json(payload): Json<CreateEvent>,
@@ -32,10 +32,9 @@ pub async fn create(
 }
 
 pub async fn single(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
 ) -> Result<Json<EventDetail>, error::AppError> {
-  let id = id.parse::<i64>().expect("cannot convert id to integer");
   let event = sqlx::query_as!(Event,
       r#"
   SELECT id, name, description, creator FROM event
@@ -70,7 +69,7 @@ pub async fn single(
 
     let fullfillments = sqlx::query_as!(Fullfillment,
       r#"
-  SELECT id, requirement, user FROM fullfillment
+  SELECT user, requirement FROM fullfillment
   WHERE fullfillment.requirement in (
       select id from requirement
       where requirement.event = ?1
@@ -107,7 +106,7 @@ pub async fn single(
 }
 
 pub async fn update(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Json(payload): Json<UpdateEvent>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
@@ -125,20 +124,10 @@ pub async fn update(
 }
 
 pub async fn delete(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
-  let _ = sqlx::query!(
-      r#"
-  DELETE FROM event
-  WHERE ID = ?1
-      "#,
-      id
-    )
-    .execute(&pool)
-    .await?;
-
-  Ok(())
+  db_modeling::delete_db_event(&pool, id).await
 }
 
 
@@ -173,12 +162,6 @@ impl Updatable for UpdateEvent {
 }
 
 #[derive(Serialize)]
-pub struct Participant {
-  id: i64,
-  username: String,
-}
-
-#[derive(Serialize)]
 pub struct Event {
   id: i64,
   name: String,
@@ -198,3 +181,22 @@ pub struct EventDetail {
   creator: i64,
 }
 
+
+#[derive(Serialize)]
+struct Participant {
+  id: i64,
+  username: String,
+}
+
+#[derive(Serialize)]
+struct Fullfillment {
+  requirement: i64,
+  user: i64,
+}
+
+#[derive(Serialize)]
+struct Requirement {
+  id: i64,
+  name: String,
+  description: Option<String>,
+}

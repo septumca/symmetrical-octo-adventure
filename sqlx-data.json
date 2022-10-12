@@ -1,5 +1,15 @@
 {
   "db": "SQLite",
+  "04c3446e72b50d07578d69c4a855428c7050632fc0785524cbabb4384e45730c": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM participant\nWHERE event in (SELECT id FROM event WHERE event.creator = ?1)\nOR user = ?1\n    "
+  },
   "0f0b4518d7f2f399f8bb763f7962aec77d1eb8c0f90b355ab42ae331ee071f40": {
     "describe": {
       "columns": [],
@@ -9,6 +19,36 @@
       }
     },
     "query": "\n  DELETE FROM event\n  WHERE ID = ?1\n      "
+  },
+  "0f815c7d2091a8051a98524ae37af25735f7b1412f202db2ee941fcf5f945c21": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM requirement\nWHERE event = ?1\n    "
+  },
+  "15b5026eb52e442cbf1f9775d4329505a03130f41ba9166306ed726939814db0": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n  DELETE FROM fullfillment\n  WHERE user = ?1 AND requirement = ?2\n      "
+  },
+  "1d2885f5f622f08f76808121aa704eb81fc23d421bfee3d251f0b5e3e3f3a45e": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "DROP TABLE fullfillment;\r\nDROP TABLE requirement;\r\nDROP TABLE participant;\r\nDROP TABLE event;\r\nDROP TABLE user;\r\n"
   },
   "39a9cac7e25d8ebe43a9469be2052ef4c743d9301ebba2c0f40780f24e257517": {
     "describe": {
@@ -45,6 +85,16 @@
       }
     },
     "query": "\n  SELECT id, name, description, creator FROM event\n  WHERE ID = ?1\n      "
+  },
+  "3bdcf772f9804785d2d39277885e4a614fe121339f1399242def5b0ec792cebe": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM requirement\nWHERE id = ?1\n    "
   },
   "3e99d97537f676bc6df428f4533a64688813f2ef935dc659a121796c28710c66": {
     "describe": {
@@ -100,35 +150,15 @@
     },
     "query": "SELECT id, username FROM user"
   },
-  "4ca4af3c5e638d9c790d53f2b252b1ea5e7130d92088e8c2a7d80eae01428a96": {
+  "5429c84eb07c9297457d757145c81300136490d9de571b6abc139bbe0653352b": {
     "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int64"
-        },
-        {
-          "name": "requirement",
-          "ordinal": 1,
-          "type_info": "Int64"
-        },
-        {
-          "name": "user",
-          "ordinal": 2,
-          "type_info": "Int64"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
+      "columns": [],
+      "nullable": [],
       "parameters": {
         "Right": 1
       }
     },
-    "query": "\n  SELECT id, requirement, user FROM fullfillment\n  WHERE fullfillment.requirement in (\n      select id from requirement\n      where requirement.event = ?1\n    )\n      "
+    "query": "\nDELETE FROM requirement\nWHERE event in (SELECT id FROM event WHERE event.creator = ?1)\n    "
   },
   "59eab0f8d7226926e5ac450483de7d16b6014ab2ea42fbb1e4a20f434936b773": {
     "describe": {
@@ -170,7 +200,27 @@
     },
     "query": "\n  SELECT id, name, description FROM requirement\n  WHERE requirement.event = ?1\n      "
   },
-  "70a82ddea2c01db2b264c6330fce4f67dbd4dae870fecc28557d592170439cc5": {
+  "776a239924690adf06dbc6947a571309fef884384eb785b414d054fce84ad865": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n  INSERT INTO participant ( event, user )\n  VALUES ( ?1, ?2 )\n      "
+  },
+  "8d0a6649b96b1f5a8c0fff01925cac8793a2d48da7ac7067c171fb5569bb2164": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n  DELETE FROM participant\n  WHERE user = ?1 AND event = ?2\n      "
+  },
+  "a003d2bbd71b5ec6c1a77e5402b0236b673d8b93011ccaf6d7956bfbf109d808": {
     "describe": {
       "columns": [],
       "nullable": [],
@@ -178,7 +228,27 @@
         "Right": 1
       }
     },
-    "query": "\n  DELETE FROM fullfillment\n  WHERE ID = ?1\n      "
+    "query": "\n  DELETE FROM event\n  WHERE ID in (SELECT id FROM event WHERE event.creator = ?1)\n      "
+  },
+  "a0cf669cbc85dfd06acf20bb9271b752f62557f7ce935183a14f05756db93e9d": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM participant\nWHERE event = ?1\n    "
+  },
+  "a72d092e92b8868e4c036ff91e89b75fbc0ca63f61c24eb4756946f8f66b73fe": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "CREATE TABLE IF NOT EXISTS user (\r\n    id INTEGER PRIMARY KEY,\r\n    username TEXT NOT NULL,\r\n    password TEXT NOT NULL,\r\n    salt TEXT NOT NULL\r\n);\r\n\r\nCREATE TABLE IF NOT EXISTS event (\r\n    id INTEGER PRIMARY KEY,\r\n    name TEXT NOT NULL,\r\n    description TEXT,\r\n    creator INTEGER NOT NULL,\r\n    FOREIGN KEY(creator) REFERENCES user(id)\r\n);\r\n\r\nCREATE TABLE IF NOT EXISTS participant (\r\n    user INTEGER NOT NULL,\r\n    event INTEGER NOT NULL,\r\n    PRIMARY KEY(user, event),\r\n    FOREIGN KEY(event) REFERENCES event(id),\r\n    FOREIGN KEY(user) REFERENCES user(id)\r\n);\r\n\r\nCREATE TABLE IF NOT EXISTS requirement (\r\n    id INTEGER PRIMARY KEY,\r\n    name TEXT NOT NULL,\r\n    description TEXT,\r\n    event INTEGER NOT NULL,\r\n    FOREIGN KEY(event) REFERENCES event(id)\r\n);\r\n\r\nCREATE TABLE IF NOT EXISTS fullfillment (\r\n    user INTEGER NOT NULL,\r\n    requirement INTEGER NOT NULL,\r\n    PRIMARY KEY(user, requirement),\r\n    FOREIGN KEY(user) REFERENCES user(id),\r\n    FOREIGN KEY(requirement) REFERENCES requirement(id)\r\n);\r\n"
   },
   "a894d49bffcf651e38048def05c538f576c0583c65ffd08e41446334481ac530": {
     "describe": {
@@ -250,16 +320,6 @@
     },
     "query": "\n  SELECT id, username FROM user\n  JOIN participant on participant.user = user.id\n  WHERE participant.event = ?1\n      "
   },
-  "ba3b9cab8a607e40a81ec77b933679cf8a3a3b488593a813df0c5a7395e330d5": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Right": 1
-      }
-    },
-    "query": "\n  DELETE FROM requirement\n  WHERE ID = ?1\n      "
-  },
   "bced19453e823413f91cb8cc32c1ea0f9f4e09d01dd1bdf836e3b09486d136b2": {
     "describe": {
       "columns": [
@@ -284,6 +344,50 @@
     },
     "query": "\n  SELECT id, username FROM user\n  WHERE ID = ?1\n      "
   },
+  "bee150960fb61cba702687fc05abc3a25be889c22314c43e726c77f46d20fc63": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM fullfillment\nWHERE requirement = ?1\n    "
+  },
+  "c92556cfee416dc60311674bb2741227515234772a7d07fd8c25949177ea0202": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM fullfillment\nWHERE requirement in (SELECT id FROM requirement WHERE requirement.event = ?1)\n    "
+  },
+  "daf5221b5752f1ffa297304fb3ee442fe863941d80f950b1498cac9d4fccb9d4": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "requirement",
+          "ordinal": 1,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n  SELECT user, requirement FROM fullfillment\n  WHERE fullfillment.requirement in (\n      select id from requirement\n      where requirement.event = ?1\n    )\n      "
+  },
   "dfbea093aad14c4e8806c3d74613c01b64aa2f9b6b212eb06cdfb40a83db3d46": {
     "describe": {
       "columns": [],
@@ -293,6 +397,16 @@
       }
     },
     "query": "\n  DELETE FROM user\n  WHERE ID = ?1\n      "
+  },
+  "ea3a000e438b9cc5889903aa4d2c2a1d9c149cec8de62266052e7e1c7d7e5662": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\nDELETE FROM fullfillment\nWHERE requirement in\n  (SELECT id FROM requirement WHERE requirement.event in\n    (SELECT id FROM event WHERE event.creator = ?1)\n  )\nOR user = ?1\n    "
   },
   "ef836714a28d17dbf7bc8eca3daa0eafbb3f6da938225cc8559d5924a23373ca": {
     "describe": {

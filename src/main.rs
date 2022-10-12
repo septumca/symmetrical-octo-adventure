@@ -21,6 +21,7 @@ mod auth;
 mod db_modeling;
 mod user;
 mod event;
+mod participant;
 mod requirement;
 mod fullfillment;
 
@@ -52,12 +53,15 @@ async fn app(pool: Pool<Sqlite>) -> Router {
     .route("/event/:id", delete(event::delete))
     .route("/event", get(event::all))
 
+    .route("/participant", post(participant::create))
+    .route("/participant/:user_id/:event_id", delete(participant::delete))
+
     .route("/requirement", post(requirement::create))
     .route("/requirement/:id", put(requirement::update))
     .route("/requirement/:id", delete(requirement::delete))
 
     .route("/fullfillment", post(fullfillment::create))
-    .route("/fullfillment/:id", delete(fullfillment::delete))
+    .route("/fullfillment/:user_id/:requirement_id", delete(fullfillment::delete))
 
     .route_layer(middleware::from_fn(auth::auth))
     ;
@@ -99,10 +103,8 @@ async fn main() {
 }
 
 // https://github.com/tokio-rs/axum/tree/0.5.x/examples/testing
-
 #[cfg(test)]
 mod tests {
-  use crate::utils::read_file;
 
   use super::*;
   use axum::{
@@ -110,55 +112,59 @@ mod tests {
       http::{self, Request, StatusCode},
   };
   use serde_json::{json, Value};
-  use std::net::{SocketAddr, TcpListener};
   use tower::ServiceExt; // for `app.oneshot()`
 
-  async fn setup(init_db: bool) -> Router {
+  async fn test_api(app: Router, uri: &str, method: Method, body: Option<Value>, expected_response: Option<Value>) {
+    let body = body.and_then(|b| Some(Body::from(serde_json::to_vec(&b).unwrap()))).unwrap_or(Body::empty());
+    let response = app
+      .oneshot(
+          Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+            .body(body)
+            .unwrap(),
+      )
+      .await
+      .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    if let Some(expected_response) = expected_response {
+      let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+      let body: Value = serde_json::from_slice(&body).unwrap();
+      assert_eq!(body, expected_response);
+    }
+  }
+
+  async fn setup() -> (Router, SqlitePool) {
     env::set_var("DATABASE_URL", "sqlite::memory:");
     let pool = SqlitePool::connect(&env::var("DATABASE_URL").unwrap()).await.unwrap();
-    if init_db {
-      let sql = read_file("up.sql").unwrap();
-      sqlx::query(&sql).execute(&pool).await.unwrap();
-    }
-    app(pool).await
+    (app(pool.clone()).await, pool)
+  }
+
+  async fn setup_with_structure() -> (Router, SqlitePool) {
+    let (app, pool) = setup().await;
+    let _ = sqlx::query_file!("./sql/up.sql").execute(&pool).await.unwrap();
+    (app, pool)
+  }
+
+  async fn setup_with_data() -> (Router, SqlitePool) {
+    let (app, pool) = setup_with_structure().await;
+    let _ = sqlx::query_file!("./sql/test.sql").execute(&pool).await.unwrap();
+    (app, pool)
   }
 
   #[tokio::test]
   async fn db_up() {
-    let app = setup(false).await;
-
-    let response = app
-        .oneshot(
-            Request::builder()
-              .method(http::Method::GET)
-              .uri("/up")
-              .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-              .body(Body::empty())
-              .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
+    let (app, _) = setup().await;
+    test_api(app, "/up", http::Method::GET, None, None).await;
   }
 
   #[tokio::test]
   async fn db_down() {
-    let app = setup(true).await;
-
-    let response = app
-        .oneshot(
-            Request::builder()
-              .method(http::Method::GET)
-              .uri("/down")
-              .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-              .body(Body::empty())
-              .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
+    let (app, _) = setup_with_structure().await;
+    test_api(app, "/down", http::Method::GET, None, None).await;
   }
 
   mod user {
@@ -166,35 +172,394 @@ mod tests {
 
     #[tokio::test]
     async fn register() {
-      let app = setup(true).await;
+      let (app, _) = setup_with_structure().await;
       let body_json = json!({
         "username": "Janko Hrasko",
         "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
       });
-      let response_json = json!({
+      let expected_response = json!({
         "id": 1,
         "username": "Janko Hrasko"
       });
 
-      let response = app
-          .oneshot(
-              Request::builder()
-                .method(http::Method::POST)
-                .uri("/register")
-                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(Body::from(
-                    serde_json::to_vec(&body_json).unwrap(),
-                ))
-                .unwrap(),
-          )
-          .await
-          .unwrap();
+      test_api(app, "/register", http::Method::POST, Some(body_json), Some(expected_response)).await;
+    }
 
-      assert_eq!(response.status(), StatusCode::OK);
+    #[tokio::test]
+    async fn single() {
+      let (app, _) = setup_with_data().await;
+      let expected_response = json!({
+        "id": 1,
+        "username": "username1"
+      });
 
-      let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-      let body: Value = serde_json::from_slice(&body).unwrap();
-      assert_eq!(body, response_json);
+      test_api(app, "/user/1", http::Method::GET, None, Some(expected_response)).await;
+    }
+
+    #[tokio::test]
+    async fn all() {
+      let (app, _) = setup_with_data().await;
+      let expected_response = json!([
+        {
+          "id": 1,
+          "username": "username1"
+        },
+        {
+          "id": 2,
+          "username": "username2"
+        },
+        {
+          "id": 3,
+          "username": "username3"
+        },
+        {
+          "id": 4,
+          "username": "username4"
+        },
+        {
+          "id": 5,
+          "username": "username5"
+        },
+        {
+          "id": 6,
+          "username": "username6"
+        }
+      ]);
+
+      test_api(app, "/user", http::Method::GET, None, Some(expected_response)).await;
+    }
+
+    #[tokio::test]
+    async fn update() {
+      let (app, pool) = setup_with_data().await;
+      let body_json = json!({
+        "username": "edited_username",
+      });
+
+      test_api(app, "/user/1", http::Method::PUT, Some(body_json), None).await;
+
+      let result = sqlx::query!("select * from user where id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(result.username, "edited_username");
+    }
+
+    #[tokio::test]
+    async fn delete_simple() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/user/5", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select * from user")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 5);
+      assert_eq!(results[0].id, 1);
+      assert_eq!(results[1].id, 2);
+      assert_eq!(results[2].id, 3);
+      assert_eq!(results[3].id, 4);
+      assert_eq!(results[4].id, 6);
+    }
+
+    #[tokio::test]
+    async fn delete_with_fk() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/user/1", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select * from user")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 5);
+      assert_eq!(results[0].id, 2);
+      assert_eq!(results[1].id, 3);
+      assert_eq!(results[2].id, 4);
+      assert_eq!(results[3].id, 5);
+      assert_eq!(results[4].id, 6);
+
+      //TODO cleanup checks
+    }
+  }
+
+  mod event {
+    use super::*;
+
+    #[tokio::test]
+    async fn create() {
+      let (app, pool) = setup_with_structure().await;
+      let body_json = json!({
+        "name": "my new event",
+        "description": "my event description",
+        "creator": 1
+      });
+      let expected_response = json!({
+        "id": 1,
+        "name": "my new event",
+        "description": "my event description",
+        "creator": 1
+      });
+      let _ = sqlx::query!("INSERT INTO user (id, username, password, salt) VALUES (1, 'username1', 'sha256password', 'somesalt')")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+      test_api(app, "/event", http::Method::POST, Some(body_json), Some(expected_response)).await;
+    }
+
+    #[tokio::test]
+    async fn single() {
+      let (app, _) = setup_with_data().await;
+      let expected_response = json!({
+        "id": 1,
+        "name": "event-1",
+        "description": "some description 1",
+        "participants": [{ "id": 2, "username": "username2" }, { "id": 3, "username": "username3" }],
+        "requirements": [{ "id": 1, "name": "req1", "description": "req1-desc" },{ "id": 2, "name": "req2", "description": "req2-desc" }],
+        "fullfillments": [{ "requirement": 1, "user": 4 }],
+        "creator": 1
+      });
+
+      test_api(app, "/event/1", http::Method::GET, None, Some(expected_response)).await;
+    }
+
+    #[tokio::test]
+    async fn all() {
+      let (app, _) = setup_with_data().await;
+      let expected_response = json!([
+        {
+          "id": 1,
+          "name": "event-1",
+          "description": "some description 1",
+          "creator": 1
+        },
+        {
+          "id": 2,
+          "name": "event-2",
+          "description": "some description 2",
+          "creator": 6
+        },
+        {
+          "id": 3,
+          "name": "event-3",
+          "description": "some description 3",
+          "creator": 4
+        }
+      ]);
+
+      test_api(app, "/event", http::Method::GET, None, Some(expected_response)).await;
+    }
+
+    #[tokio::test]
+    async fn update() {
+      let (app, pool) = setup_with_data().await;
+      let body_json = json!({
+        "name": "edited name event 1",
+        "description": "some description 1",
+      });
+
+      test_api(app, "/event/1", http::Method::PUT, Some(body_json), None).await;
+
+      let result = sqlx::query!("select * from event where id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(result.name, "edited name event 1");
+      assert_eq!(result.description, Some("some description 1".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn delete_simple() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/event/3", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select * from event")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 2);
+      assert_eq!(results[0].id, 1);
+      assert_eq!(results[0].name, "event-1");
+      assert_eq!(results[1].id, 2);
+      assert_eq!(results[1].name, "event-2");
+    }
+
+    #[tokio::test]
+    async fn delete_with_fk() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/event/1", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select * from event")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 2);
+      assert_eq!(results[0].id, 2);
+      assert_eq!(results[0].name, "event-2");
+      assert_eq!(results[1].id, 3);
+      assert_eq!(results[1].name, "event-3");
+
+      //TODO cleanup checks
+    }
+  }
+
+  mod participant {
+    use super::*;
+
+    #[tokio::test]
+    async fn create() {
+      let (app, pool) = setup_with_data().await;
+      let body_json = json!({
+        "event": 3,
+        "user": 6,
+      });
+
+      test_api(app, "/participant", http::Method::POST, Some(body_json), None).await;
+
+      let results = sqlx::query!("select * from participant where event = 3 and user = 6")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn delete() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/participant/3/1", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select user, event from participant")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 3);
+      println!("{:?}", results);
+      assert_eq!(results[0].user, 2);
+      assert_eq!(results[0].event, 1);
+      assert_eq!(results[1].user, 3);
+      assert_eq!(results[1].event, 2);
+      assert_eq!(results[2].user, 4);
+      assert_eq!(results[2].event, 2);
+    }
+  }
+
+  mod requirement {
+    use super::*;
+
+    #[tokio::test]
+    async fn create() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "name": "new-req",
+        "description": "new-req-desc",
+        "event": 3
+      });
+      let expected_response = json!({
+        "id": 4,
+        "name": "new-req",
+        "description": "new-req-desc",
+        "event": 3
+      });
+
+      test_api(app, "/requirement", http::Method::POST, Some(body_json), Some(expected_response)).await;
+    }
+
+    #[tokio::test]
+    async fn update() {
+      let (app, pool) = setup_with_data().await;
+      let body_json = json!({
+        "name": "edited req name",
+        "description": "some other description 1",
+      });
+
+      test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), None).await;
+
+      let result = sqlx::query!("select * from requirement where id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(result.name, "edited req name");
+      assert_eq!(result.description, Some("some other description 1".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn delete_simple() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/requirement/2", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select id from requirement")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 2);
+      assert_eq!(results[0].id, 1);
+      assert_eq!(results[1].id, 3);
+    }
+
+    #[tokio::test]
+    async fn delete_with_fk() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/requirement/1", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select id from requirement")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 2);
+      assert_eq!(results.len(), 2);
+      assert_eq!(results[0].id, 2);
+      assert_eq!(results[1].id, 3);
+
+      //TODO cleanup checks
+    }
+  }
+
+  mod fullfillment {
+    use super::*;
+
+    #[tokio::test]
+    async fn create() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "requirement": 3,
+        "user": 6,
+      });
+
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None).await;
+    }
+
+    #[tokio::test]
+    async fn delete() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/fullfillment/4/1", http::Method::DELETE, None, None).await;
+
+      let results = sqlx::query!("select user, requirement from fullfillment")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 1);
+      assert_eq!(results[0].user, 2);
+      assert_eq!(results[0].requirement, 3);
     }
   }
 

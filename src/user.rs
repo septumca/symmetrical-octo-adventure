@@ -3,7 +3,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, auth::{generate_salt, get_salted_password, generate_jwt}};
+use crate::{DbState, error::{self, AppError}, auth::{generate_salt, get_salted_password, generate_jwt}, db_modeling};
 
 pub async fn create(
   Json(payload): Json<CreateUser>,
@@ -32,7 +32,7 @@ pub async fn create(
 }
 
 pub async fn single(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
 ) -> Result<Json<User>, error::AppError> {
   let user = sqlx::query_as!(User,
@@ -62,7 +62,7 @@ pub async fn all(
 }
 
 pub async fn update(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Json(payload): Json<UpdateUser>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
@@ -84,20 +84,10 @@ pub async fn update(
 }
 
 pub async fn delete(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
-  let _ = sqlx::query!(
-      r#"
-  DELETE FROM user
-  WHERE ID = ?1
-      "#,
-      id
-    )
-    .execute(&pool)
-    .await?;
-
-  Ok(())
+  db_modeling::delete_db_user(&pool, id).await
 }
 
 pub async fn authentificate(

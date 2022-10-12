@@ -14,8 +14,9 @@ CREATE TABLE IF NOT EXISTS event (
 );
 
 CREATE TABLE IF NOT EXISTS participant (
-    event INTEGER NOT NULL,
     user INTEGER NOT NULL,
+    event INTEGER NOT NULL,
+    PRIMARY KEY(user, event),
     FOREIGN KEY(event) REFERENCES event(id),
     FOREIGN KEY(user) REFERENCES user(id)
 );
@@ -29,9 +30,9 @@ CREATE TABLE IF NOT EXISTS requirement (
 );
 
 CREATE TABLE IF NOT EXISTS fullfillment (
-    id INTEGER PRIMARY KEY,
     user INTEGER NOT NULL,
     requirement INTEGER NOT NULL,
+    PRIMARY KEY(user, requirement),
     FOREIGN KEY(user) REFERENCES user(id),
     FOREIGN KEY(requirement) REFERENCES requirement(id)
 );

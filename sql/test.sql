@@ -1,0 +1,18 @@
+INSERT INTO user (id, username, password, salt) VALUES (1, 'username1', 'sha256password', 'somesalt');
+INSERT INTO user (id, username, password, salt) VALUES (2, 'username2', 'sha256password', 'somesalt');
+INSERT INTO user (id, username, password, salt) VALUES (3, 'username3', 'sha256password', 'somesalt');
+INSERT INTO user (id, username, password, salt) VALUES (4, 'username4', 'sha256password', 'somesalt');
+INSERT INTO user (id, username, password, salt) VALUES (5, 'username5', 'sha256password', 'somesalt');
+INSERT INTO user (id, username, password, salt) VALUES (6, 'username6', 'sha256password', 'somesalt');
+INSERT INTO event (id, name, description, creator) VALUES (1, 'event-1', 'some description 1', 1);
+INSERT INTO event (id, name, description, creator) VALUES (2, 'event-2', 'some description 2', 6);
+INSERT INTO event (id, name, description, creator) VALUES (3, 'event-3', 'some description 3', 4);
+INSERT INTO participant (user, event) VALUES (2, 1);
+INSERT INTO participant (user, event) VALUES (3, 1);
+INSERT INTO participant (user, event) VALUES (3, 2);
+INSERT INTO participant (user, event) VALUES (4, 2);
+INSERT INTO requirement (id, name, description, event) VALUES (1, "req1", "req1-desc", 1);
+INSERT INTO requirement (id, name, description, event) VALUES (2, "req2", "req2-desc", 1);
+INSERT INTO requirement (id, name, description, event) VALUES (3, "req3", "req3-desc", 2);
+INSERT INTO fullfillment (user, requirement) VALUES (4, 1);
+INSERT INTO fullfillment (user, requirement) VALUES (2, 3);

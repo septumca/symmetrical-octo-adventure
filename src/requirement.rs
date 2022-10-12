@@ -3,7 +3,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, db_modeling::Updatable};
+use crate::{DbState, error::{self, AppError}, db_modeling::{Updatable, self}};
 
 pub async fn create(
   Json(payload): Json<CreateRequirement>,
@@ -25,13 +25,14 @@ pub async fn create(
     id,
     name,
     description,
+    event,
   };
 
   Ok(Json(event))
 }
 
 pub async fn update(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Json(payload): Json<UpdateRequirement>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
@@ -49,20 +50,10 @@ pub async fn update(
 }
 
 pub async fn delete(
-  Path(id): Path<String>,
+  Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
-  let _ = sqlx::query!(
-      r#"
-  DELETE FROM requirement
-  WHERE ID = ?1
-      "#,
-      id
-    )
-    .execute(&pool)
-    .await?;
-
-  Ok(())
+  db_modeling::delete_db_requirement(&pool, id).await
 }
 
 
@@ -98,7 +89,8 @@ impl Updatable for UpdateRequirement {
 
 #[derive(Serialize)]
 pub struct Requirement {
-  pub id: i64,
-  pub name: String,
-  pub description: Option<String>,
+  id: i64,
+  name: String,
+  description: Option<String>,
+  event: i64
 }
