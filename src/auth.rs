@@ -86,6 +86,7 @@ pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
 
   match token {
     Some(token) if token_is_valid(String::from(token)) => {
+        // req.extensions_mut().insert(user_id_from_jwt_token);
       Ok(next.run(req).await)
     }
     _ => Err(StatusCode::UNAUTHORIZED),

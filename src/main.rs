@@ -30,28 +30,28 @@ type DbState = Pool<Sqlite>;
 #[allow(dead_code)]
 async fn app(pool: Pool<Sqlite>) -> Router {
   let cors = CorsLayer::new()
-  .allow_methods(vec![Method::GET, Method::POST, Method::DELETE, Method::PUT])
-  .allow_headers(Any)
-  .allow_origin(Any);
+    .allow_methods(vec![Method::GET, Method::POST, Method::DELETE, Method::PUT])
+    .allow_headers(Any)
+    .allow_origin(Any);
 
   let public = Router::new()
     .route("/up", get(database_up))
     .route("/down", get(database_down))
     .route("/register", post(user::create))
     .route("/authentificate", post(authentificate))
+    .route("/event", get(event::all))
+    .route("/user", get(user::all))
     ;
 
   let private = Router::new()
     .route("/user/:id", get(user::single))
     .route("/user/:id", put(user::update))
     .route("/user/:id", delete(user::delete))
-    .route("/user", get(user::all))
 
     .route("/event", post(event::create))
     .route("/event/:id", get(event::single))
     .route("/event/:id", put(event::update))
     .route("/event/:id", delete(event::delete))
-    .route("/event", get(event::all))
 
     .route("/participant", post(participant::create))
     .route("/participant/:user_id/:event_id", delete(participant::delete))
@@ -72,7 +72,7 @@ async fn app(pool: Pool<Sqlite>) -> Router {
     .layer(
       ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
-        .layer(Extension(cors))
+        .layer(cors)
         .layer(Extension(pool))
     )
 }
@@ -104,7 +104,7 @@ async fn main() {
 
 // https://github.com/tokio-rs/axum/tree/0.5.x/examples/testing
 #[cfg(test)]
-mod tests {
+mod main {
 
   use super::*;
   use axum::{
