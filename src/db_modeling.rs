@@ -10,6 +10,14 @@ pub async fn database_up(
   Ok(())
 }
 
+pub async fn database_fill(
+  Extension(pool): Extension<DbState>
+) -> Result<(), error::AppError> {
+  sqlx::query_file!("./sql/mock.sql").execute(&pool).await.unwrap();
+
+  Ok(())
+}
+
 pub async fn database_down(
   Extension(pool): Extension<DbState>
 ) -> Result<(), error::AppError> {

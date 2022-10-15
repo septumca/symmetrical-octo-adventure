@@ -10,7 +10,7 @@ use user::{authentificate};
 use std::{env};
 use std::net::SocketAddr;
 use sqlx::{SqlitePool, Pool, Sqlite};
-use db_modeling::{database_down, database_up};
+use db_modeling::{database_down, database_up, database_fill};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
@@ -37,6 +37,7 @@ async fn app(pool: Pool<Sqlite>) -> Router {
   let public = Router::new()
     .route("/up", get(database_up))
     .route("/down", get(database_down))
+    .route("/fill", get(database_fill))
     .route("/register", post(user::create))
     .route("/authentificate", post(authentificate))
     .route("/event", get(event::all))
