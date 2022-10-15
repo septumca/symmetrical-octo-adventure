@@ -3,7 +3,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, db_modeling::{Updatable, self}};
+use crate::{DbState, error::{self, AppError}, db_modeling::{Updatable, self}, user::User};
 
 pub async fn create(
   Json(payload): Json<CreateEvent>,
@@ -21,11 +21,25 @@ pub async fn create(
     .await?
     .last_insert_rowid();
 
+    let user = sqlx::query_as!(User,
+      r#"
+  SELECT id, username
+  FROM user
+  WHERE id = ?1
+      "#,
+      creator
+    )
+    .fetch_one(&pool)
+    .await?;
+
   let event = Event {
     id,
     name,
     description,
-    creator
+    creator: User {
+      id: creator,
+      username: user.username
+    }
   };
 
   Ok(Json(event))
@@ -35,10 +49,12 @@ pub async fn single(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
 ) -> Result<Json<EventDetail>, error::AppError> {
-  let event = sqlx::query_as!(Event,
+  let event = sqlx::query_as!(DbEvent,
       r#"
-  SELECT id, name, description, creator FROM event
-  WHERE ID = ?1
+  SELECT event.id, name, description, creator, user.username
+  FROM event
+  JOIN user ON event.creator = user.id
+  WHERE event.id = ?1
       "#,
       id
     )
@@ -46,7 +62,7 @@ pub async fn single(
     .await?;
 
   if let Some(d) = event {
-    let participants = sqlx::query_as!(Participant,
+    let participants = sqlx::query_as!(User,
       r#"
   SELECT id, username FROM user
   JOIN participant on participant.user = user.id
@@ -67,9 +83,11 @@ pub async fn single(
     .fetch_all(&pool)
     .await?;
 
-    let fullfillments = sqlx::query_as!(Fullfillment,
+    let fullfillments = sqlx::query!(
       r#"
-  SELECT user, requirement FROM fullfillment
+  SELECT user.id,  user.username, requirement
+  FROM fullfillment
+  JOIN user on fullfillment.user = user.id
   WHERE fullfillment.requirement in (
       select id from requirement
       where requirement.event = ?1
@@ -78,13 +96,25 @@ pub async fn single(
       id
     )
     .fetch_all(&pool)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|f| Fullfillment {
+      user: User {
+        id: f.id,
+        username: f.username
+      },
+      requirement: f.requirement
+    })
+    .collect();
 
     let event_detail = EventDetail {
       id,
       name: d.name,
       description: d.description,
-      creator: d.creator,
+      creator: User {
+        id: d.creator,
+        username: d.username,
+      },
       participants,
       requirements,
       fullfillments,
@@ -98,9 +128,23 @@ pub async fn single(
   pub async fn all(
   Extension(pool): Extension<DbState>,
   ) -> Result<Json<Vec<Event>>, error::AppError> {
-  let events = sqlx::query_as!(Event, "SELECT id, name, description, creator FROM event")
+  let events = sqlx::query_as!(DbEvent, "
+  SELECT event.id, name, description, creator, user.username
+  FROM event
+  JOIN user ON event.creator = user.id")
     .fetch_all(&pool)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|dbevent| Event {
+      id: dbevent.id,
+      name: dbevent.name,
+      description: dbevent.description,
+      creator: User {
+        id: dbevent.creator,
+        username: dbevent.username,
+      }
+    })
+    .collect();
 
   Ok(Json(events))
 }
@@ -162,11 +206,20 @@ impl Updatable for UpdateEvent {
 }
 
 #[derive(Serialize)]
-pub struct Event {
+pub struct DbEvent {
   id: i64,
   name: String,
   description: Option<String>,
   creator: i64,
+  username: String,
+}
+
+#[derive(Serialize)]
+pub struct Event {
+  id: i64,
+  name: String,
+  description: Option<String>,
+  creator: User,
 }
 
 
@@ -175,23 +228,16 @@ pub struct EventDetail {
   id: i64,
   name: String,
   description: Option<String>,
-  participants: Vec<Participant>,
+  participants: Vec<User>,
   requirements: Vec<Requirement>,
   fullfillments: Vec<Fullfillment>,
-  creator: i64,
-}
-
-
-#[derive(Serialize)]
-struct Participant {
-  id: i64,
-  username: String,
+  creator: User,
 }
 
 #[derive(Serialize)]
 struct Fullfillment {
   requirement: i64,
-  user: i64,
+  user: User,
 }
 
 #[derive(Serialize)]

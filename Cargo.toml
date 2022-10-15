@@ -28,6 +28,6 @@ opt-level = 3
 
 [profile.release]
 strip = true  # Automatically strip symbols from the binary.
-lto = true
-codegen-units = 1
+# lto = true
+# codegen-units = 1
 panic = "abort"

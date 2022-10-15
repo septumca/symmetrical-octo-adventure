@@ -131,8 +131,8 @@ pub struct UpdateUser {
 
 #[derive(Serialize)]
 pub struct User {
-  id: i64,
-  username: String,
+  pub id: i64,
+  pub username: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]

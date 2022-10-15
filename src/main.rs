@@ -40,6 +40,7 @@ async fn app(pool: Pool<Sqlite>) -> Router {
     .route("/register", post(user::create))
     .route("/authentificate", post(authentificate))
     .route("/event", get(event::all))
+    .route("/event/:id", get(event::single))
     .route("/user", get(user::all))
     ;
 
@@ -49,7 +50,6 @@ async fn app(pool: Pool<Sqlite>) -> Router {
     .route("/user/:id", delete(user::delete))
 
     .route("/event", post(event::create))
-    .route("/event/:id", get(event::single))
     .route("/event/:id", put(event::update))
     .route("/event/:id", delete(event::delete))
 
@@ -302,7 +302,10 @@ mod main {
         "id": 1,
         "name": "my new event",
         "description": "my event description",
-        "creator": 1
+        "creator": {
+          "id": 1,
+          "username": "username1"
+        }
       });
       let _ = sqlx::query!("INSERT INTO user (id, username, password, salt) VALUES (1, 'username1', 'sha256password', 'somesalt')")
         .execute(&pool)
@@ -319,10 +322,25 @@ mod main {
         "id": 1,
         "name": "event-1",
         "description": "some description 1",
-        "participants": [{ "id": 2, "username": "username2" }, { "id": 3, "username": "username3" }],
-        "requirements": [{ "id": 1, "name": "req1", "description": "req1-desc" },{ "id": 2, "name": "req2", "description": "req2-desc" }],
-        "fullfillments": [{ "requirement": 1, "user": 4 }],
-        "creator": 1
+        "participants": [
+          { "id": 2, "username": "username2" },
+          { "id": 3, "username": "username3" }
+        ],
+        "requirements": [
+          { "id": 1, "name": "req1", "description": "req1-desc" },
+          { "id": 2, "name": "req2", "description": "req2-desc" }
+        ],
+        "fullfillments": [{
+          "requirement": 1,
+          "user": {
+            "id": 4,
+            "username": "username4"
+          }
+        }],
+        "creator": {
+          "id": 1,
+          "username": "username1"
+        }
       });
 
       test_api(app, "/event/1", http::Method::GET, None, Some(expected_response)).await;
@@ -336,19 +354,28 @@ mod main {
           "id": 1,
           "name": "event-1",
           "description": "some description 1",
-          "creator": 1
+          "creator": {
+            "id": 1,
+            "username": "username1"
+          }
         },
         {
           "id": 2,
           "name": "event-2",
           "description": "some description 2",
-          "creator": 6
+          "creator": {
+            "id": 6,
+            "username": "username6"
+          }
         },
         {
           "id": 3,
           "name": "event-3",
           "description": "some description 3",
-          "creator": 4
+          "creator": {
+            "id": 4,
+            "username": "username4"
+          }
         }
       ]);
 
