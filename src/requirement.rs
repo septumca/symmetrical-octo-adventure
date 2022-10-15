@@ -1,14 +1,15 @@
 use axum::{
   Json, Extension, extract::Path,
 };
+use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, db_modeling::{Updatable, self}};
+use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, utils::AppReponse};
 
 pub async fn create(
   Json(payload): Json<CreateRequirement>,
   Extension(pool): Extension<DbState>,
-) -> Result<Json<Requirement>, error::AppError> {
+) -> AppReponse<Json<Requirement>> {
   let CreateRequirement { name, description, event, size } = payload;
   let size = size.unwrap_or(1);
   let id = sqlx::query!(
@@ -30,14 +31,14 @@ pub async fn create(
     size,
   };
 
-  Ok(Json(event))
+  Ok((StatusCode::CREATED, Json(event)))
 }
 
 pub async fn update(
   Path(id): Path<i64>,
   Json(payload): Json<UpdateRequirement>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
+) -> AppReponse<()> {
   if !payload.validate() {
     return Err(AppError::BadRequest(String::from("at least one field must be filled out")));
   }
@@ -48,14 +49,16 @@ pub async fn update(
     .execute(&pool)
     .await?;
 
-  Ok(())
+  Ok((StatusCode::NO_CONTENT, ()))
 }
 
 pub async fn delete(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
-  db_modeling::delete_db_requirement(&pool, id).await
+) -> AppReponse<()> {
+  db_modeling::delete_db_requirement(&pool, id)
+    .await
+    .and_then(|r| Ok((StatusCode::NO_CONTENT, r)))
 }
 
 

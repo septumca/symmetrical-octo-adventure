@@ -1,14 +1,15 @@
 use axum::{
   Json, Extension, extract::Path,
 };
+use hyper::StatusCode;
 use serde::{Deserialize};
 
-use crate::{DbState, error::{self}};
+use crate::{DbState, utils::AppReponse};
 
 pub async fn create(
   Json(payload): Json<CreateParticipant>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
+) -> AppReponse<()> {
   let CreateParticipant { event, user } = payload;
   let _ = sqlx::query!(
       r#"
@@ -21,13 +22,13 @@ pub async fn create(
     .await?
     .last_insert_rowid();
 
-  Ok(())
+  Ok((StatusCode::CREATED, ()))
 }
 
 pub async fn delete(
   Path((user_id, event_id)): Path<(i64, i64)>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
+) -> AppReponse<()> {
   let _ = sqlx::query!(
       r#"
   DELETE FROM participant
@@ -38,7 +39,7 @@ pub async fn delete(
     .execute(&pool)
     .await?;
 
-  Ok(())
+  Ok((StatusCode::NO_CONTENT, ()))
 }
 
 #[derive(Deserialize)]

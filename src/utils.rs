@@ -1,4 +1,9 @@
+use hyper::StatusCode;
 use tokio::signal;
+
+use crate::error;
+
+pub type AppReponse<T> = Result<(StatusCode, T), error::AppError>;
 
 pub async fn shutdown_signal() {
   let ctrl_c = async {

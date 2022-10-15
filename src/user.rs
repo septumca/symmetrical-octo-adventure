@@ -1,14 +1,15 @@
 use axum::{
     Json, Extension, extract::Path,
 };
+use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, auth::{generate_salt, get_salted_password, generate_jwt}, db_modeling};
+use crate::{DbState, error::{self, AppError}, auth::{generate_salt, get_salted_password, generate_jwt}, db_modeling, utils::AppReponse};
 
 pub async fn create(
   Json(payload): Json<CreateUser>,
   Extension(pool): Extension<DbState>,
-) -> Result<Json<User>, error::AppError> {
+) -> AppReponse<Json<User>> {
   let salt = generate_salt();
   let password = get_salted_password(&payload.password, &salt.clone());
 
@@ -28,13 +29,13 @@ pub async fn create(
     username: payload.username,
   };
 
-  Ok(Json(user))
+  Ok((StatusCode::CREATED, Json(user)))
 }
 
 pub async fn single(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
-) -> Result<Json<User>, error::AppError> {
+) -> AppReponse<Json<User>> {
   let user = sqlx::query_as!(User,
       r#"
   SELECT id, username FROM user
@@ -46,26 +47,26 @@ pub async fn single(
     .await?;
 
   match user {
-    Some(u) => Ok(Json(u)),
+    Some(u) => Ok((StatusCode::OK, Json(u))),
     None => Err(AppError::NotFound(format!("{id}"))),
   }
 }
 
 pub async fn all(
   Extension(pool): Extension<DbState>,
-) -> Result<Json<Vec<User>>, error::AppError> {
+) -> AppReponse<Json<Vec<User>>> {
   let users = sqlx::query_as!(User, "SELECT id, username FROM user")
     .fetch_all(&pool)
     .await?;
 
-  Ok(Json(users))
+  Ok((StatusCode::OK, Json(users)))
 }
 
 pub async fn update(
   Path(id): Path<i64>,
   Json(payload): Json<UpdateUser>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
+) -> AppReponse<()> {
   if let Some(username) = payload.username {
     let _ = sqlx::query!(
       r#"
@@ -77,7 +78,7 @@ pub async fn update(
     .execute(&pool)
     .await?;
 
-    Ok(())
+    Ok(((StatusCode::NO_CONTENT), ()))
   } else {
     Err(AppError::BadRequest(String::from("at least one field must be filled out")))
   }
@@ -86,14 +87,17 @@ pub async fn update(
 pub async fn delete(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
-  db_modeling::delete_db_user(&pool, id).await
+) -> AppReponse<()> {
+  db_modeling::delete_db_user(&pool, id)
+    .await
+    .and_then(|r| Ok(((StatusCode::NO_CONTENT), r)))
+
 }
 
 pub async fn authentificate(
   Json(data): Json<UserAuthReqData>,
   Extension(pool): Extension<DbState>,
-) -> Result<Json<UserAuthRespData>, error::AppError> {
+) -> AppReponse<Json<UserAuthRespData>> {
   let user_db = sqlx::query!(
       "
       SELECT id, password, salt
@@ -112,10 +116,9 @@ pub async fn authentificate(
 
   let resp = UserAuthRespData {
     id: user_db.id,
-    token: generate_jwt(format!("{}", user_db.id))
+    token: generate_jwt(&format!("{}", user_db.id))
   };
-  Ok::<Json<UserAuthRespData>, error::AppError>(Json(resp))
-
+  Ok((StatusCode::OK, Json(resp)))
 }
 
 #[derive(Deserialize)]

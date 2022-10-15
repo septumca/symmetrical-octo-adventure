@@ -1,14 +1,15 @@
 use axum::{
   Json, Extension, extract::Path,
 };
+use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, db_modeling::{Updatable, self}, user::User};
+use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, user::User, utils::AppReponse};
 
 pub async fn create(
   Json(payload): Json<CreateEvent>,
   Extension(pool): Extension<DbState>,
-) -> Result<Json<Event>, error::AppError> {
+) -> AppReponse<Json<Event>> {
   let CreateEvent { name, description, creator } = payload;
   let id = sqlx::query!(
       r#"
@@ -42,13 +43,13 @@ pub async fn create(
     }
   };
 
-  Ok(Json(event))
+  Ok((StatusCode::CREATED, Json(event)))
 }
 
 pub async fn single(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
-) -> Result<Json<EventDetail>, error::AppError> {
+) -> AppReponse<Json<EventDetail>> {
   let event = sqlx::query_as!(DbEvent,
       r#"
   SELECT event.id, name, description, creator, user.username
@@ -119,7 +120,7 @@ pub async fn single(
       requirements,
       fullfillments,
     };
-    Ok(Json(event_detail))
+    Ok((StatusCode::OK, Json(event_detail)))
   } else {
     Err(AppError::NotFound(format!("{id}")))
   }
@@ -127,7 +128,7 @@ pub async fn single(
 
   pub async fn all(
   Extension(pool): Extension<DbState>,
-  ) -> Result<Json<Vec<Event>>, error::AppError> {
+  ) -> AppReponse<Json<Vec<Event>>> {
   let events = sqlx::query_as!(DbEvent, "
   SELECT event.id, name, description, creator, user.username
   FROM event
@@ -146,14 +147,14 @@ pub async fn single(
     })
     .collect();
 
-  Ok(Json(events))
+  Ok((StatusCode::OK, Json(events)))
 }
 
 pub async fn update(
   Path(id): Path<i64>,
   Json(payload): Json<UpdateEvent>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
+) -> AppReponse<()> {
   if !payload.validate() {
     return Err(AppError::BadRequest(String::from("at least one field must be filled out")));
   }
@@ -164,14 +165,16 @@ pub async fn update(
     .execute(&pool)
     .await?;
 
-  Ok(())
+  Ok((StatusCode::NO_CONTENT, ()))
 }
 
 pub async fn delete(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
-) -> Result<(), error::AppError> {
-  db_modeling::delete_db_event(&pool, id).await
+) -> AppReponse<()> {
+  db_modeling::delete_db_event(&pool, id)
+    .await
+    .and_then(|r| Ok((StatusCode::NO_CONTENT, r)))
 }
 
 

@@ -60,8 +60,8 @@ pub fn get_salted_password(password: &str, salt: &str) -> String {
     .join("")
 }
 
-pub fn generate_jwt(user_id: String) -> String {
-  let claims = Claims::new(user_id);
+pub fn generate_jwt(user_id: &str) -> String {
+  let claims = Claims::new(String::from(user_id));
   let secret = get_secret();
   encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref())).expect("jwt token to be generated")
 }
@@ -72,13 +72,6 @@ fn token_is_valid(token: String) -> bool {
   token.is_ok() && token.expect("token should be valid").claims.iss == *ISSUER
 }
 
-#[cfg(debug_assertions)]
-pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
-  next.run(req).await
-}
-
-#[allow(dead_code)]
-#[cfg(not(debug_assertions))]
 pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
   let token = req.headers()
     .get("X-JWT-Token")
@@ -93,13 +86,6 @@ pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
   }
 }
 
-#[cfg(debug_assertions)]
-pub fn get_secret() -> String {
-  String::from("mysecret")
-}
-
-#[allow(dead_code)]
-#[cfg(not(debug_assertions))]
 pub fn get_secret() -> String {
   env::var("JWT_SECRET").expect("JWT_SECRET must be set")
 }
