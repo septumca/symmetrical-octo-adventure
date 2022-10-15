@@ -75,7 +75,7 @@ pub async fn single(
 
     let requirements = sqlx::query_as!(Requirement,
       r#"
-  SELECT id, name, description FROM requirement
+  SELECT id, name, description, size FROM requirement
   WHERE requirement.event = ?1
       "#,
       id
@@ -245,4 +245,5 @@ struct Requirement {
   id: i64,
   name: String,
   description: Option<String>,
+  size: i64,
 }

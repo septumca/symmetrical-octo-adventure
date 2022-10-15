@@ -3,13 +3,39 @@ use axum::{
 };
 use serde::{Deserialize};
 
-use crate::{DbState, error::{self}};
+use crate::{DbState, error::{self, AppError}};
 
 pub async fn create(
   Json(payload): Json<CreateFullfillment>,
   Extension(pool): Extension<DbState>,
 ) -> Result<(), error::AppError> {
   let CreateFullfillment { requirement, user } = payload;
+  let maximum = sqlx::query!(
+    r#"
+SELECT size FROM requirement WHERE id = ?1
+    "#,
+    requirement
+  )
+  .fetch_optional(&pool)
+  .await?;
+
+  if maximum.is_none() {
+    return Err(AppError::NotFound(format!("Cannot find requirement: {requirement}")))
+  }
+  let maximum = maximum.unwrap();
+  let existing = sqlx::query!(
+    r#"
+SELECT count(1) as size FROM fullfillment WHERE requirement = ?1
+    "#,
+    requirement
+  )
+  .fetch_one(&pool)
+  .await?;
+
+  if existing.size as i64 >= maximum.size {
+    return Err(AppError::Server(format!("Maximum number of user for this requirement exeeded: {requirement}")))
+  }
+
   let _ = sqlx::query!(
       r#"
   INSERT INTO fullfillment ( requirement, user )

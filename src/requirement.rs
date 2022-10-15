@@ -9,13 +9,14 @@ pub async fn create(
   Json(payload): Json<CreateRequirement>,
   Extension(pool): Extension<DbState>,
 ) -> Result<Json<Requirement>, error::AppError> {
-  let CreateRequirement { name, description, event } = payload;
+  let CreateRequirement { name, description, event, size } = payload;
+  let size = size.unwrap_or(1);
   let id = sqlx::query!(
       r#"
-  INSERT INTO requirement ( name, description, event )
-  VALUES ( ?1, ?2, ?3 )
+  INSERT INTO requirement ( name, description, event, size )
+  VALUES ( ?1, ?2, ?3, ?4 )
       "#,
-      name, description, event
+      name, description, event, size
     )
     .execute(&pool)
     .await?
@@ -26,6 +27,7 @@ pub async fn create(
     name,
     description,
     event,
+    size,
   };
 
   Ok(Json(event))
@@ -61,6 +63,7 @@ pub async fn delete(
 pub struct CreateRequirement {
   name : String,
   description: Option<String>,
+  size: Option<i64>,
   event: i64,
 }
 
@@ -68,6 +71,7 @@ pub struct CreateRequirement {
 pub struct UpdateRequirement {
   name: Option<String>,
   description: Option<String>,
+  size: Option<i64>,
 }
 
 impl Updatable for UpdateRequirement {
@@ -79,11 +83,14 @@ impl Updatable for UpdateRequirement {
     if let Some(description) = &self.description {
       updates.push(format!("description = '{description}'"));
     }
+    if let Some(size) = &self.size {
+      updates.push(format!("description = {size}"));
+    }
     updates.join(", ")
   }
 
   fn validate(&self) -> bool {
-    self.name.is_some() || self.description.is_some()
+    self.name.is_some() || self.description.is_some() || self.size.is_some()
   }
 }
 
@@ -92,5 +99,6 @@ pub struct Requirement {
   id: i64,
   name: String,
   description: Option<String>,
+  size: i64,
   event: i64
 }

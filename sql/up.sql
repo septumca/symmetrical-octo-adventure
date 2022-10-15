@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS requirement (
     name TEXT NOT NULL,
     description TEXT,
     event INTEGER NOT NULL,
+    size INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY(event) REFERENCES event(id)
 );
 
