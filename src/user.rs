@@ -4,7 +4,7 @@ use axum::{
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{self, AppError}, auth::{generate_salt, get_salted_password, generate_jwt}, db_modeling, utils::AppReponse};
+use crate::{DbState, error::{self, AppError}, auth::{generate_salt, get_salted_password, generate_jwt, UserAuth}, db_modeling, utils::AppReponse};
 
 pub async fn create(
   Json(payload): Json<CreateUser>,
@@ -35,6 +35,7 @@ pub async fn create(
 pub async fn single(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<Json<User>> {
   let user = sqlx::query_as!(User,
       r#"
@@ -54,6 +55,7 @@ pub async fn single(
 
 pub async fn all(
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<Json<Vec<User>>> {
   let users = sqlx::query_as!(User, "SELECT id, username FROM user")
     .fetch_all(&pool)
@@ -66,6 +68,7 @@ pub async fn update(
   Path(id): Path<i64>,
   Json(payload): Json<UpdateUser>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   if let Some(username) = payload.username {
     let _ = sqlx::query!(
@@ -87,11 +90,11 @@ pub async fn update(
 pub async fn delete(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   db_modeling::delete_db_user(&pool, id)
     .await
     .and_then(|r| Ok(((StatusCode::NO_CONTENT), r)))
-
 }
 
 pub async fn authentificate(
@@ -116,7 +119,7 @@ pub async fn authentificate(
 
   let resp = UserAuthRespData {
     id: user_db.id,
-    token: generate_jwt(&format!("{}", user_db.id))
+    token: generate_jwt(&format!("{}", user_db.id), &data.username)
   };
   Ok((StatusCode::OK, Json(resp)))
 }

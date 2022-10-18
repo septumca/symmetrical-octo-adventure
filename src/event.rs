@@ -4,11 +4,12 @@ use axum::{
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, user::User, utils::AppReponse};
+use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, user::User, utils::AppReponse, auth::UserAuth};
 
 pub async fn create(
   Json(payload): Json<CreateEvent>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<Json<Event>> {
   let CreateEvent { name, description, creator } = payload;
   let id = sqlx::query!(
@@ -154,6 +155,7 @@ pub async fn update(
   Path(id): Path<i64>,
   Json(payload): Json<UpdateEvent>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   if !payload.validate() {
     return Err(AppError::BadRequest(String::from("at least one field must be filled out")));
@@ -171,6 +173,7 @@ pub async fn update(
 pub async fn delete(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   db_modeling::delete_db_event(&pool, id)
     .await

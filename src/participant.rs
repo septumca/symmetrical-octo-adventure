@@ -2,15 +2,29 @@ use axum::{
   Json, Extension, extract::Path,
 };
 use hyper::StatusCode;
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{DbState, utils::AppReponse};
+use crate::{DbState, utils::AppReponse, error::AppError, auth::UserAuth};
 
 pub async fn create(
   Json(payload): Json<CreateParticipant>,
   Extension(pool): Extension<DbState>,
-) -> AppReponse<()> {
+  UserAuth(auth_userid): UserAuth,
+) -> AppReponse<Json<CreateParticipantResponse>> {
   let CreateParticipant { event, user } = payload;
+  if user != auth_userid {
+    return Err(AppError::Unauthorized(format!("cannot make participation for another user, participting user: {}, requester: {}", user, auth_userid)));
+  }
+
+  let selected_user = sqlx::query!(
+      r#"
+  SELECT username FROM user WHERE id = ?1
+      "#,
+      user
+    )
+    .fetch_one(&pool)
+    .await?;
+
   let _ = sqlx::query!(
       r#"
   INSERT INTO participant ( event, user )
@@ -22,12 +36,17 @@ pub async fn create(
     .await?
     .last_insert_rowid();
 
-  Ok((StatusCode::CREATED, ()))
+  let participant = CreateParticipantResponse {
+    user,
+    username: selected_user.username
+  };
+  Ok((StatusCode::CREATED, Json(participant)))
 }
 
 pub async fn delete(
   Path((user_id, event_id)): Path<(i64, i64)>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   let _ = sqlx::query!(
       r#"
@@ -45,5 +64,12 @@ pub async fn delete(
 #[derive(Deserialize)]
 pub struct CreateParticipant {
   event: i64,
+  user: i64,
+}
+
+
+#[derive(Serialize)]
+pub struct CreateParticipantResponse {
+  username: String,
   user: i64,
 }

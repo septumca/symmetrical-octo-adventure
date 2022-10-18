@@ -1,7 +1,7 @@
 use axum::{
   http::Method,
   routing::{get, post, put, delete},
-  Router, Extension, middleware,
+  Router, Extension,
 };
 use dotenvy::dotenv;
 use tracing_subscriber::{EnvFilter, prelude::*};
@@ -40,19 +40,17 @@ async fn app(pool: Pool<Sqlite>) -> Router {
     .route("/fill", get(database_fill))
     .route("/register", post(user::create))
     .route("/authentificate", post(authentificate))
+
     .route("/event", get(event::all))
     .route("/event/:id", get(event::single))
-    .route("/user", get(user::all))
-    ;
-
-  let private = Router::new()
-    .route("/user/:id", get(user::single))
-    .route("/user/:id", put(user::update))
-    .route("/user/:id", delete(user::delete))
-
     .route("/event", post(event::create))
     .route("/event/:id", put(event::update))
     .route("/event/:id", delete(event::delete))
+
+    .route("/user", get(user::all))
+    .route("/user/:id", get(user::single))
+    .route("/user/:id", put(user::update))
+    .route("/user/:id", delete(user::delete))
 
     .route("/participant", post(participant::create))
     .route("/participant/:user_id/:event_id", delete(participant::delete))
@@ -63,13 +61,9 @@ async fn app(pool: Pool<Sqlite>) -> Router {
 
     .route("/fullfillment", post(fullfillment::create))
     .route("/fullfillment/:user_id/:requirement_id", delete(fullfillment::delete))
-
-    .route_layer(middleware::from_fn(auth::auth))
     ;
 
-  Router::new()
-    .merge(public)
-    .merge(private)
+  public
     .layer(
       ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
@@ -121,7 +115,7 @@ mod main {
       .uri(uri)
       .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref());
     if with_auth {
-      let token = generate_jwt("1");
+      let token = generate_jwt("1", "jozko1");
       let headers = req.headers_mut().unwrap();
       headers.insert("X-JWT-Token", HeaderValue::from_str(&token).unwrap());
     }
@@ -451,21 +445,47 @@ mod main {
     use super::*;
 
     #[tokio::test]
-    async fn create() {
+    async fn create_without_auth() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "event": 3,
+        "user": 1,
+      });
+
+      test_api(app, "/participant", http::Method::POST, Some(body_json), None, StatusCode::UNAUTHORIZED, false).await;
+    }
+
+    #[tokio::test]
+    async fn create_for_self() {
       let (app, pool) = setup_with_data().await;
       let body_json = json!({
         "event": 3,
-        "user": 6,
+        "user": 1,
+      });
+      let expected_response = json!({
+        "user": 1,
+        "username": "username1"
       });
 
-      test_api(app, "/participant", http::Method::POST, Some(body_json), None, StatusCode::CREATED, true).await;
+      test_api(app, "/participant", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, true).await;
 
-      let results = sqlx::query!("select * from participant where event = 3 and user = 6")
+      let results = sqlx::query!("select * from participant where event = 3 and user = 1")
         .fetch_all(&pool)
         .await
         .unwrap();
 
       assert_eq!(results.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn create_for_another_user() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "event": 3,
+        "user": 6,
+      });
+
+      test_api(app, "/participant", http::Method::POST, Some(body_json), None, StatusCode::UNAUTHORIZED, true).await;
     }
 
     #[tokio::test]

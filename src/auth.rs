@@ -1,4 +1,4 @@
-use axum::{http::{Request, StatusCode}, middleware::Next, response::IntoResponse};
+use axum::{http::{StatusCode}, async_trait, extract::{FromRequest, RequestParts}};
 use chrono::{Utc, Duration};
 use jsonwebtoken::{EncodingKey, Header, encode, decode, DecodingKey, Validation};
 use rand::Rng;
@@ -8,22 +8,51 @@ use std::{env};
 
 pub const ISSUER: &str = "zmtwc";
 
+pub struct UserAuth(pub i64);
+
+#[async_trait]
+impl<B> FromRequest<B> for UserAuth
+where
+    B: Send,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+      let token = req.headers()
+        .get("X-JWT-Token")
+        .and_then(|header| header.to_str().ok());
+
+      if let Some(token) = token {
+        if let Some(claims) = validate_and_decode(token) {
+          return Ok(UserAuth(claims.sub.parse::<i64>().unwrap()));
+        } else {
+          return Err((StatusCode::UNAUTHORIZED, "Invalid JWT token"))
+        }
+      }
+      Err((StatusCode::UNAUTHORIZED, "`X-JWT-Token` header is missing"))
+    }
+}
+
+
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
   iss: String,
   sub: String,
+  username: String,
   exp: i64,
   iat: i64,
 }
 
 impl Claims {
-  pub fn new(sub: String) -> Self {
+  pub fn new(sub: String, username: String) -> Self {
     let iat = Utc::now();
     let exp = iat + Duration::hours(24);
 
     Self {
       iss: String::from(ISSUER),
       sub,
+      username,
       iat: iat.timestamp(),
       exp: exp.timestamp(),
     }
@@ -60,29 +89,26 @@ pub fn get_salted_password(password: &str, salt: &str) -> String {
     .join("")
 }
 
-pub fn generate_jwt(user_id: &str) -> String {
-  let claims = Claims::new(String::from(user_id));
+pub fn generate_jwt(user_id: &str, username: &str) -> String {
+  let claims = Claims::new(String::from(user_id), String::from(username));
   let secret = get_secret();
   encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref())).expect("jwt token to be generated")
 }
 
 #[allow(dead_code)]
-fn token_is_valid(token: String) -> bool {
-  let token = decode::<Claims>(&token, &DecodingKey::from_secret(get_secret().as_ref()), &Validation::default());
-  token.is_ok() && token.expect("token should be valid").claims.iss == *ISSUER
-}
+fn validate_and_decode(token: &str) -> Option<Claims> {
+  let token = decode::<Claims>(token, &DecodingKey::from_secret(get_secret().as_ref()), &Validation::default());
+  let claims = token.and_then(|td| Ok(td.claims));
 
-pub async fn auth<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
-  let token = req.headers()
-    .get("X-JWT-Token")
-    .and_then(|header| header.to_str().ok());
-
-  match token {
-    Some(token) if token_is_valid(String::from(token)) => {
-        // req.extensions_mut().insert(user_id_from_jwt_token);
-      Ok(next.run(req).await)
-    }
-    _ => Err(StatusCode::UNAUTHORIZED),
+  match claims {
+    Ok(claims) => {
+      if claims.iss == *ISSUER {
+        Some(claims)
+      } else {
+        None
+      }
+    },
+    _ => None
   }
 }
 

@@ -4,11 +4,12 @@ use axum::{
 use hyper::StatusCode;
 use serde::{Deserialize};
 
-use crate::{DbState, error::{AppError}, utils::AppReponse};
+use crate::{DbState, error::{AppError}, utils::AppReponse, auth::UserAuth};
 
 pub async fn create(
   Json(payload): Json<CreateFullfillment>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   let CreateFullfillment { requirement, user } = payload;
   let maximum = sqlx::query!(
@@ -54,6 +55,7 @@ SELECT count(1) as size FROM fullfillment WHERE requirement = ?1
 pub async fn delete(
   Path((user_id, requirement_id)): Path<(i64, i64)>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   let _ = sqlx::query!(
       r#"

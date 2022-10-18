@@ -4,11 +4,12 @@ use axum::{
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, utils::AppReponse};
+use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, utils::AppReponse, auth::UserAuth};
 
 pub async fn create(
   Json(payload): Json<CreateRequirement>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<Json<Requirement>> {
   let CreateRequirement { name, description, event, size } = payload;
   let size = size.unwrap_or(1);
@@ -38,6 +39,7 @@ pub async fn update(
   Path(id): Path<i64>,
   Json(payload): Json<UpdateRequirement>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   if !payload.validate() {
     return Err(AppError::BadRequest(String::from("at least one field must be filled out")));
@@ -55,6 +57,7 @@ pub async fn update(
 pub async fn delete(
   Path(id): Path<i64>,
   Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   db_modeling::delete_db_requirement(&pool, id)
     .await

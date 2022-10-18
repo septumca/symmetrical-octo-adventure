@@ -14,32 +14,32 @@ impl IntoResponse for AppError {
     let (status, error_message) = match self {
       AppError::Unauthorized(msg) => {
         (
-          StatusCode::NOT_FOUND,
-          format!("{} - {}", "Unauthorized", msg)
+          StatusCode::UNAUTHORIZED,
+          msg
         )
       },
       AppError::Server(msg) => {
         (
           StatusCode::INTERNAL_SERVER_ERROR,
-          format!("{} - {}", "Internal Server Error", msg)
+          msg
         )
       }
       AppError::DB(msg) => {
         (
           StatusCode::INTERNAL_SERVER_ERROR,
-          format!("{} - {}", "Database Error", msg)
+          msg
         )
       }
       AppError::NotFound(msg) => {
         (
           StatusCode::NOT_FOUND,
-          format!("{} - {}", "Not Found", msg)
+          msg
         )
       },
       AppError::BadRequest(msg) => {
         (
           StatusCode::BAD_REQUEST,
-          format!("{} - {}", "Bad Request", msg)
+          msg
         )
       }
     };
