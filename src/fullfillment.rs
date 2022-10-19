@@ -4,7 +4,14 @@ use axum::{
 use hyper::StatusCode;
 use serde::{Deserialize};
 
-use crate::{DbState, error::{AppError}, utils::AppReponse, auth::UserAuth};
+use crate::{DbState, error::{AppError}, utils::AppReponse, auth::{UserAuth, user_action_authorization}};
+
+
+#[derive(Deserialize)]
+pub struct CreateFullfillment {
+  requirement: i64,
+  user: i64,
+}
 
 pub async fn create(
   Json(payload): Json<CreateFullfillment>,
@@ -12,6 +19,7 @@ pub async fn create(
   UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
   let CreateFullfillment { requirement, user } = payload;
+  user_action_authorization(user, auth_userid, "cannot add fullfillment for another user")?;
   let maximum = sqlx::query!(
     r#"
 SELECT size FROM requirement WHERE id = ?1
@@ -57,6 +65,8 @@ pub async fn delete(
   Extension(pool): Extension<DbState>,
   UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<()> {
+  user_action_authorization(user_id, auth_userid, "cannot remove fullfillment for another user")?;
+
   let _ = sqlx::query!(
       r#"
   DELETE FROM fullfillment
@@ -71,8 +81,78 @@ pub async fn delete(
 }
 
 
-#[derive(Deserialize)]
-pub struct CreateFullfillment {
-  requirement: i64,
-  user: i64,
+#[cfg(test)]
+mod fullfillment {
+  use super::*;
+  use serde_json::json;
+  use crate::utils::test::{test_api, setup_with_data};
+  use axum::http;
+
+  mod create {
+    use super::*;
+
+    #[tokio::test]
+    async fn to_single() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "requirement": 2,
+        "user": 6,
+      });
+
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::CREATED, Some(("6", "username6"))).await;
+    }
+
+    #[tokio::test]
+    async fn to_mutliple() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "requirement": 1,
+        "user": 6,
+      });
+
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::CREATED, Some(("6", "username6"))).await;
+    }
+
+    #[tokio::test]
+    async fn to_non_existing() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "requirement": 5,
+        "user": 6,
+      });
+
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::NOT_FOUND, Some(("6", "username6"))).await;
+    }
+
+    #[tokio::test]
+    async fn fully_assigned() {
+      let (app, _) = setup_with_data().await;
+      let body_json = json!({
+        "requirement": 3,
+        "user": 6,
+      });
+
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::INTERNAL_SERVER_ERROR, Some(("6", "username6"))).await;
+    }
+  }
+
+  mod delete {
+    use super::*;
+
+    #[tokio::test]
+    async fn simple() {
+      let (app, pool) = setup_with_data().await;
+
+      test_api(app, "/fullfillment/4/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("4", "username4"))).await;
+
+      let results = sqlx::query!("select user, requirement from fullfillment")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(results.len(), 1);
+      assert_eq!(results[0].user, 2);
+      assert_eq!(results[0].requirement, 3);
+    }
+  }
 }

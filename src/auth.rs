@@ -1,10 +1,12 @@
-use axum::{http::{StatusCode}, async_trait, extract::{FromRequest, RequestParts}};
+use axum::{async_trait, extract::{FromRequest, RequestParts}};
 use chrono::{Utc, Duration};
 use jsonwebtoken::{EncodingKey, Header, encode, decode, DecodingKey, Validation};
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
 use std::{env};
+
+use crate::{error::AppError, DbState};
 
 pub const ISSUER: &str = "zmtwc";
 
@@ -15,7 +17,7 @@ impl<B> FromRequest<B> for UserAuth
 where
     B: Send,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = AppError;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
       let token = req.headers()
@@ -26,10 +28,10 @@ where
         if let Some(claims) = validate_and_decode(token) {
           return Ok(UserAuth(claims.sub.parse::<i64>().unwrap()));
         } else {
-          return Err((StatusCode::UNAUTHORIZED, "Invalid JWT token"))
+          return Err(AppError::Unauthorized("Invalid JWT token".to_owned()))
         }
       }
-      Err((StatusCode::UNAUTHORIZED, "`X-JWT-Token` header is missing"))
+      Err(AppError::Unauthorized("`X-JWT-Token` header is missing".to_owned()))
     }
 }
 
@@ -114,4 +116,31 @@ fn validate_and_decode(token: &str) -> Option<Claims> {
 
 pub fn get_secret() -> String {
   env::var("JWT_SECRET").expect("JWT_SECRET must be set")
+}
+
+pub fn user_action_authorization(user_id: i64, auth_id: i64, msg: &str) -> Result<(), AppError> {
+  if user_id != auth_id {
+    return Err(AppError::Unauthorized(String::from(msg)));
+  }
+  Ok(())
+}
+
+pub async fn event_action_authorization(pool: &DbState, event_id: i64, auth_id: i64, msg: &str) -> Result<(), AppError> {
+  let event_to_update = sqlx::query!("SELECT creator FROM event WHERE id = ?1", event_id)
+    .fetch_one(pool)
+    .await?;
+  if event_to_update.creator != auth_id {
+    return Err(AppError::Unauthorized(String::from(msg)));
+  }
+  Ok(())
+}
+
+pub async fn requirement_action_authorization(pool: &DbState, req_id: i64, auth_id: i64, msg: &str) -> Result<(), AppError> {
+  let event_to_update = sqlx::query!("SELECT creator FROM event WHERE id = (SELECT event FROM requirement where id = ?1)", req_id)
+    .fetch_one(pool)
+    .await?;
+  if event_to_update.creator != auth_id {
+    return Err(AppError::Unauthorized(String::from(msg)));
+  }
+  Ok(())
 }
