@@ -2,9 +2,9 @@ use axum::{
   Json, Extension, extract::Path,
 };
 use hyper::StatusCode;
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{DbState, error::{AppError}, utils::AppReponse, auth::{UserAuth, user_action_authorization}};
+use crate::{DbState, error::{AppError}, utils::AppReponse, auth::{UserAuth, user_action_authorization}, user::User};
 
 
 #[derive(Deserialize)]
@@ -13,11 +13,17 @@ pub struct CreateFullfillment {
   user: i64,
 }
 
+#[derive(Serialize)]
+pub struct CreateFullfillmentResponse {
+  requirement: i64,
+  user: User,
+}
+
 pub async fn create(
   Json(payload): Json<CreateFullfillment>,
   Extension(pool): Extension<DbState>,
   UserAuth(auth_userid): UserAuth,
-) -> AppReponse<()> {
+) -> AppReponse<Json<CreateFullfillmentResponse>> {
   let CreateFullfillment { requirement, user } = payload;
   user_action_authorization(user, auth_userid, "cannot add fullfillment for another user")?;
   let maximum = sqlx::query!(
@@ -57,7 +63,24 @@ SELECT count(1) as size FROM fullfillment WHERE requirement = ?1
     .await?
     .last_insert_rowid();
 
-  Ok((StatusCode::CREATED, ()))
+    let dbuser = sqlx::query!(
+      r#"
+  SELECT username FROM user WHERE id = ?1
+      "#,
+      user
+    )
+    .fetch_one(&pool)
+    .await?;
+
+  let response = CreateFullfillmentResponse {
+    requirement,
+    user: User {
+      id: user,
+      username: dbuser.username
+    }
+  };
+
+  Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn delete(
@@ -98,8 +121,15 @@ mod fullfillment {
         "requirement": 2,
         "user": 6,
       });
+      let expected_response = json!({
+        "requirement": 2,
+        "user": {
+          "id": 6,
+          "username": "username6"
+        }
+      });
 
-      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::CREATED, Some(("6", "username6"))).await;
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("6", "username6"))).await;
     }
 
     #[tokio::test]
@@ -109,8 +139,15 @@ mod fullfillment {
         "requirement": 1,
         "user": 6,
       });
+      let expected_response = json!({
+        "requirement": 1,
+        "user": {
+          "id": 6,
+          "username": "username6"
+        }
+      });
 
-      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::CREATED, Some(("6", "username6"))).await;
+      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("6", "username6"))).await;
     }
 
     #[tokio::test]
