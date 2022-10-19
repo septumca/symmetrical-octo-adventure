@@ -15,6 +15,41 @@ pub struct Requirement {
   event: i64
 }
 
+#[derive(Deserialize)]
+pub struct CreateRequirement {
+  name : String,
+  description: Option<String>,
+  size: Option<i64>,
+  event: i64,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateRequirement {
+  name: Option<String>,
+  description: Option<String>,
+  size: Option<i64>,
+}
+
+impl Updatable for UpdateRequirement {
+  fn update_string(&self) -> String {
+    let mut updates = vec![];
+    if let Some(name) = &self.name {
+      updates.push(format!("name = '{name}'"));
+    }
+    if let Some(description) = &self.description {
+      updates.push(format!("description = '{description}'"));
+    }
+    if let Some(size) = &self.size {
+      updates.push(format!("size = {size}"));
+    }
+    updates.join(", ")
+  }
+
+  fn validate(&self) -> bool {
+    self.name.is_some() || self.description.is_some() || self.size.is_some()
+  }
+}
+
 pub async fn create(
   Json(payload): Json<CreateRequirement>,
   Extension(pool): Extension<DbState>,
@@ -64,6 +99,21 @@ pub async fn update(
     .execute(&pool)
     .await?;
 
+  if let Some(size) = payload.size {
+    let mut fullfillments = sqlx::query!("SELECT requirement, user FROM fullfillment WHERE requirement = ?1", id)
+      .fetch_all(&pool)
+      .await?;
+    let extra_fullfillments = fullfillments.drain((size as usize)..);
+    for ef in extra_fullfillments {
+      let _ = sqlx::query!(
+        r#"DELETE FROM fullfillment WHERE requirement = ?1 AND user = ?2"#,
+        ef.requirement, ef.user
+      )
+      .execute(&pool)
+      .await?;
+    }
+  }
+
   Ok((StatusCode::NO_CONTENT, ()))
 }
 
@@ -77,42 +127,6 @@ pub async fn delete(
   db_modeling::delete_db_requirement(&pool, id)
     .await
     .and_then(|r| Ok((StatusCode::NO_CONTENT, r)))
-}
-
-
-#[derive(Deserialize)]
-pub struct CreateRequirement {
-  name : String,
-  description: Option<String>,
-  size: Option<i64>,
-  event: i64,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateRequirement {
-  name: Option<String>,
-  description: Option<String>,
-  size: Option<i64>,
-}
-
-impl Updatable for UpdateRequirement {
-  fn update_string(&self) -> String {
-    let mut updates = vec![];
-    if let Some(name) = &self.name {
-      updates.push(format!("name = '{name}'"));
-    }
-    if let Some(description) = &self.description {
-      updates.push(format!("description = '{description}'"));
-    }
-    if let Some(size) = &self.size {
-      updates.push(format!("description = {size}"));
-    }
-    updates.join(", ")
-  }
-
-  fn validate(&self) -> bool {
-    self.name.is_some() || self.description.is_some() || self.size.is_some()
-  }
 }
 
 #[cfg(test)]
@@ -185,6 +199,34 @@ mod test {
 
       assert_eq!(result.name, "edited req name");
       assert_eq!(result.description, Some("some other description 1".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn size_with_more_fullfillments() {
+      let (app, pool) = setup_with_data().await;
+      sqlx::query("INSERT INTO fullfillment (user, requirement) VALUES (6, 1)")
+        .execute(&pool)
+        .await
+        .unwrap();
+      let body_json = json!({
+        "size": 1,
+      });
+
+      test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+
+      let result = sqlx::query!("select * from requirement where id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+      assert_eq!(result.size, 1);
+
+      let result = sqlx::query!("select * from fullfillment where requirement = 1")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+      assert_eq!(result.len(), 1);
+      assert_eq!(result[0].user, 4);
+      assert_eq!(result[0].requirement, 1);
     }
 
     #[tokio::test]
