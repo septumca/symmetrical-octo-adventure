@@ -37,6 +37,7 @@ pub async fn app(pool: Pool<Sqlite>) -> Router {
     .route("/up", get(database_up))
     .route("/down", get(database_down))
     .route("/fill", get(database_fill))
+    .route("/verify_captcha", post(auth::verify_captcha))
     .route("/register", post(user::create))
     .route("/authentificate", post(authentificate))
 

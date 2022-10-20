@@ -1,12 +1,14 @@
-use axum::{async_trait, extract::{FromRequest, RequestParts}};
+use axum::{async_trait, extract::{FromRequest, RequestParts}, Json};
 use chrono::{Utc, Duration};
+use hyper::StatusCode;
 use jsonwebtoken::{EncodingKey, Header, encode, decode, DecodingKey, Validation};
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
-use std::{env};
+use std::{env, collections::HashMap};
+use reqwest;
 
-use crate::{error::AppError, DbState};
+use crate::{error::AppError, DbState, utils::AppReponse};
 
 pub const ISSUER: &str = "zmtwc";
 
@@ -33,6 +35,43 @@ where
       }
       Err(AppError::Unauthorized("`X-JWT-Token` header is missing".to_owned()))
     }
+}
+
+#[derive(Deserialize)]
+pub struct CaptchaRequest {
+  token: String
+}
+
+#[derive(Debug, Deserialize)]
+struct CaptchaResponse {
+  success: bool,
+  #[serde(rename(deserialize = "error-codes"))]
+  error_codes: Option<Vec<String>>
+}
+
+pub async fn verify_captcha(
+  Json(payload): Json<CaptchaRequest>,
+) -> AppReponse<()> {
+  let mut params = HashMap::new();
+  params.insert("secret", env::var("CAPTCHA_SECRET_KEY").expect("captcha key must be set"));
+  params.insert("response", payload.token);
+
+  let client = reqwest::Client::new();
+
+  let res = client.post("https://www.google.com/recaptcha/api/siteverify")
+    .form(&params)
+    .send()
+    .await?;
+
+  let text = res.text().await?;
+  let response_body: CaptchaResponse = serde_json::from_str(&text)?;
+  tracing::debug!("captcha verification response body: {:?}", response_body);
+
+  if !response_body.success {
+    return Err(AppError::Unauthorized(format!("captcha verification failed: {}", response_body.error_codes.unwrap_or(vec!["Unknown error".to_owned()]).join(", "))));
+  }
+
+  Ok((StatusCode::OK, ()))
 }
 
 

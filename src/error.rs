@@ -68,3 +68,15 @@ impl From<sqlx::Error> for AppError {
     AppError::DB(e.to_string())
   }
 }
+
+impl From<reqwest::Error> for AppError {
+  fn from(e: reqwest::Error) -> Self {
+    AppError::Server(e.to_string())
+  }
+}
+
+impl From<serde_json::Error> for AppError {
+  fn from(e: serde_json::Error) -> Self {
+    AppError::Server(e.to_string())
+  }
+}

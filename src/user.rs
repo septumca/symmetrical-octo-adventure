@@ -145,14 +145,18 @@ pub async fn authentificate(
     .fetch_one(&pool)
     .await?;
 
+  if user_db.id.is_none() {
+    return Err(AppError::NotFound(format!("User doesn't exist")))
+  }
+  let user_id = user_db.id.unwrap();
   let calculated_password = get_salted_password(&data.password, &user_db.salt);
   if calculated_password != user_db.password {
     return Err(error::AppError::Unauthorized(String::from("incorrect password")));
   }
 
   let resp = UserAuthRespData {
-    id: user_db.id,
-    token: generate_jwt(&format!("{}", user_db.id), &data.username)
+    id: user_id,
+    token: generate_jwt(&format!("{}", user_id), &data.username)
   };
   Ok((StatusCode::OK, Json(resp)))
 }

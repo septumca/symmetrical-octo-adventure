@@ -1,5 +1,5 @@
 use axum::{
-  Json, Extension, extract::Path,
+  Json, Extension, extract::{Path, Query},
 };
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ pub struct UpdateEventResponse {
   description: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(sqlx::FromRow, Serialize)]
 pub struct DbEvent {
   id: i64,
   name: String,
@@ -186,17 +186,30 @@ pub async fn single(
   }
 }
 
-  pub async fn all(
+#[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
+pub struct EventSearchParam {
+    page: Option<u32>,
+    pageSize: Option<u32>,
+}
+
+pub async fn all(
   Extension(pool): Extension<DbState>,
-  ) -> AppReponse<Json<Vec<Event>>> {
-  let events = sqlx::query_as!(DbEvent, "
-  SELECT event.id, name, description, creator, user.username
+  Query(params): Query<EventSearchParam>
+) -> AppReponse<Json<Vec<Event>>> {
+  let mut sql = "SELECT event.id, name, description, creator, user.username
   FROM event
-  JOIN user ON event.creator = user.id")
+  JOIN user ON event.creator = user.id ".to_owned();
+  if let (Some(page), Some(page_size)) = (params.page, params.pageSize) {
+    sql += &format!("LIMIT {} OFFSET {}", page_size, (page-1) * page_size);
+  }
+
+  let events = sqlx::QueryBuilder::new(sql)
+    .build_query_as()
     .fetch_all(&pool)
     .await?
     .into_iter()
-    .map(|dbevent| Event {
+    .map(|dbevent: DbEvent| Event {
       id: dbevent.id,
       name: dbevent.name,
       description: dbevent.description,
@@ -383,6 +396,24 @@ mod test {
       ]);
 
       test_api(app, "/event", http::Method::GET, None, Some(expected_response), StatusCode::OK, None).await;
+    }
+
+    #[tokio::test]
+    async fn all_paginated() {
+      let (app, _) = setup_with_data().await;
+      let expected_response = json!([
+        {
+          "id": 2,
+          "name": "event-2",
+          "description": "some description 2",
+          "creator": {
+            "id": 6,
+            "username": "username6"
+          }
+        }
+      ]);
+
+      test_api(app, "/event?page=2&pageSize=1", http::Method::GET, None, Some(expected_response), StatusCode::OK, None).await;
     }
   }
 

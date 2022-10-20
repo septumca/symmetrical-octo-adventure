@@ -12,6 +12,17 @@ GET http://localhost:5000/fill HTTP/1.1
 ### DB down
 GET http://localhost:5000/down HTTP/1.1
 
+
+################################## CAPTCHA #####################################
+
+### verify captcha
+POST http://localhost:5000/verify_captcha HTTP/1.1
+Content-Type: application/json
+
+{
+  "token": "12345"
+}
+
 ###################################### USERS ###################################
 
 ### create - password sha256 of 'password'
@@ -19,61 +30,7 @@ POST http://localhost:5000/register HTTP/1.1
 Content-Type: application/json
 
 {
-  "username": "jozko1",
-  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
-}
-
-### create - password sha256 of 'password'
-POST http://localhost:5000/register HTTP/1.1
-Content-Type: application/json
-
-{
-  "username": "jozko2",
-  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
-}
-
-### create - password sha256 of 'password'
-POST http://localhost:5000/register HTTP/1.1
-Content-Type: application/json
-
-{
-  "username": "jozko3",
-  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
-}
-
-### create - password sha256 of 'password'
-POST http://localhost:5000/register HTTP/1.1
-Content-Type: application/json
-
-{
-  "username": "jozko4",
-  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
-}
-
-### create - password sha256 of 'password'
-POST http://localhost:5000/register HTTP/1.1
-Content-Type: application/json
-
-{
-  "username": "jozko5",
-  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
-}
-
-### create - password sha256 of 'password'
-POST http://localhost:5000/register HTTP/1.1
-Content-Type: application/json
-
-{
-  "username": "jozko6",
-  "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
-}
-
-### create - password sha256 of 'password'
-POST http://localhost:5000/register HTTP/1.1
-Content-Type: application/json
-
-{
-  "username": "jozko7",
+  "username": "jozko",
   "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
 }
 
@@ -120,6 +77,10 @@ Content-Type: application/json
 
 ### all events
 GET http://localhost:5000/event HTTP/1.1
+Content-Type: application/json
+
+### all events HTTPS
+GET https://localhost/api/event HTTP/1.1
 Content-Type: application/json
 
 ### single event
