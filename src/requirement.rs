@@ -129,6 +129,7 @@ pub async fn delete(
     .and_then(|r| Ok((StatusCode::NO_CONTENT, r)))
 }
 
+
 #[cfg(test)]
 mod test {
   use super::*;
@@ -141,26 +142,38 @@ mod test {
 
     #[tokio::test]
     async fn default_size() {
-      let (app, _) = setup_with_data().await;
+      let (app, pool) = setup_with_data().await;
+      let max_result = sqlx::query!("SELECT MAX(id) as id FROM requirement")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
       let body_json = json!({
         "name": "new-req",
         "description": "new-req-desc",
         "event": 3
       });
       let expected_response = json!({
-        "id": 4,
+        "id": max_result.id.unwrap() + 1,
         "name": "new-req",
         "description": "new-req-desc",
         "event": 3,
         "size": 1
       });
 
-      test_api(app, "/requirement", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("4", "username4"))).await;
+      let response = test_api(app, "/requirement", http::Method::POST, Some(body_json), StatusCode::CREATED, Some(("4", "username4"))).await;
+      assert_eq!(response, Some(expected_response));
     }
 
     #[tokio::test]
     async fn custom_size() {
-      let (app, _) = setup_with_data().await;
+      let (app, pool) = setup_with_data().await;
+
+      let max_result = sqlx::query!("SELECT MAX(id) as id FROM requirement")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
       let body_json = json!({
         "name": "new-req",
         "description": "new-req-desc",
@@ -168,14 +181,15 @@ mod test {
         "size": 5
       });
       let expected_response = json!({
-        "id": 4,
+        "id": max_result.id.unwrap() + 1,
         "name": "new-req",
         "description": "new-req-desc",
         "event": 3,
         "size": 5
       });
 
-      test_api(app, "/requirement", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("4", "username4"))).await;
+      let response = test_api(app, "/requirement", http::Method::POST, Some(body_json), StatusCode::CREATED, Some(("4", "username4"))).await;
+      assert_eq!(response, Some(expected_response));
     }
   }
 
@@ -190,7 +204,7 @@ mod test {
         "description": "some other description 1",
       });
 
-      test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let result = sqlx::query!("select * from requirement where id = 1")
         .fetch_one(&pool)
@@ -212,7 +226,7 @@ mod test {
         "size": 1,
       });
 
-      test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let result = sqlx::query!("select * from requirement where id = 1")
         .fetch_one(&pool)
@@ -237,7 +251,7 @@ mod test {
         "description": "some other description 1",
       });
 
-      test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), None, StatusCode::UNAUTHORIZED, Some(("2", "username2"))).await;
+      let _ = test_api(app, "/requirement/1", http::Method::PUT, Some(body_json), StatusCode::FORBIDDEN, Some(("2", "username2"))).await;
     }
   }
 
@@ -248,41 +262,57 @@ mod test {
     async fn simple() {
       let (app, pool) = setup_with_data().await;
 
-      test_api(app, "/requirement/2", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let requirements = sqlx::query!("SELECT COUNT(id) as cnt FROM requirement")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      let _ = test_api(app, "/requirement/2", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let results = sqlx::query!("select id from requirement")
         .fetch_all(&pool)
         .await
         .unwrap();
 
-      assert_eq!(results.len(), 2);
-      assert_eq!(results[0].id, 1);
-      assert_eq!(results[1].id, 3);
+        assert_eq!(results.len(), requirements.cnt as usize - 1);
+        assert!(results.iter().all(|r| r.id != 2));
     }
 
     #[tokio::test]
     async fn with_fk() {
       let (app, pool) = setup_with_data().await;
 
-      test_api(app, "/requirement/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let requirements = sqlx::query!("SELECT COUNT(id) as cnt FROM requirement")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      let _ = test_api(app, "/requirement/1", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let results = sqlx::query!("select id from requirement")
         .fetch_all(&pool)
         .await
         .unwrap();
 
-      assert_eq!(results.len(), 2);
-      assert_eq!(results.len(), 2);
-      assert_eq!(results[0].id, 2);
-      assert_eq!(results[1].id, 3);
+      assert_eq!(results.len(), requirements.cnt as usize - 1);
+      assert!(results.iter().all(|r| r.id != 1));
 
       //TODO cleanup checks
     }
 
     #[tokio::test]
     async fn for_another() {
-      let (app, _) = setup_with_data().await;
-      test_api(app, "/requirement/1", http::Method::DELETE, None, None, StatusCode::UNAUTHORIZED, Some(("2", "username2"))).await;
+      let (app, pool) = setup_with_data().await;
+      let requirements = sqlx::query!("SELECT COUNT(id) as cnt FROM requirement")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+      let _ = test_api(app, "/requirement/1", http::Method::DELETE, None, StatusCode::FORBIDDEN, Some(("2", "username2"))).await;
+      let requirements_after = sqlx::query!("SELECT COUNT(id) as cnt FROM requirement")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+      assert_eq!(requirements_after.cnt, requirements.cnt);
     }
   }
 }

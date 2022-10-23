@@ -68,7 +68,7 @@ pub async fn verify_captcha(
   tracing::debug!("captcha verification response body: {:?}", response_body);
 
   if !response_body.success {
-    return Err(AppError::Unauthorized(format!("captcha verification failed: {}", response_body.error_codes.unwrap_or(vec!["Unknown error".to_owned()]).join(", "))));
+    return Err(AppError::BadRequest(format!("captcha verification failed: {}", response_body.error_codes.unwrap_or(vec!["Unknown error".to_owned()]).join(", "))));
   }
 
   Ok((StatusCode::OK, ()))
@@ -159,7 +159,7 @@ pub fn get_secret() -> String {
 
 pub fn user_action_authorization(user_id: i64, auth_id: i64, msg: &str) -> Result<(), AppError> {
   if user_id != auth_id {
-    return Err(AppError::Unauthorized(String::from(msg)));
+    return Err(AppError::Forbidden(String::from(msg)));
   }
   Ok(())
 }
@@ -169,7 +169,7 @@ pub async fn event_action_authorization(pool: &DbState, event_id: i64, auth_id: 
     .fetch_one(pool)
     .await?;
   if event_to_update.creator != auth_id {
-    return Err(AppError::Unauthorized(String::from(msg)));
+    return Err(AppError::Forbidden(String::from(msg)));
   }
   Ok(())
 }
@@ -179,7 +179,7 @@ pub async fn requirement_action_authorization(pool: &DbState, req_id: i64, auth_
     .fetch_one(pool)
     .await?;
   if event_to_update.creator != auth_id {
-    return Err(AppError::Unauthorized(String::from(msg)));
+    return Err(AppError::Forbidden(String::from(msg)));
   }
   Ok(())
 }

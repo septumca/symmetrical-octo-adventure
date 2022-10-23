@@ -324,7 +324,8 @@ mod test {
         .await
         .unwrap();
 
-        test_api(app, "/event", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("1", "username1"))).await;
+        let response = test_api(app, "/event", http::Method::POST, Some(body_json), StatusCode::CREATED, Some(("1", "username1"))).await;
+        assert_eq!(response, Some(expected_response));
     }
   }
 
@@ -359,7 +360,8 @@ mod test {
         }
       });
 
-      test_api(app, "/event/1", http::Method::GET, None, Some(expected_response), StatusCode::OK, None).await;
+      let response = test_api(app, "/event/1", http::Method::GET, None, StatusCode::OK, None).await;
+      assert_eq!(response, Some(expected_response));
     }
 
     #[tokio::test]
@@ -392,10 +394,20 @@ mod test {
             "id": 4,
             "username": "username4"
           }
+        },
+        {
+          "id": 4,
+          "name": "event-4",
+          "description": "some description 4",
+          "creator": {
+            "id": 1,
+            "username": "username1"
+          }
         }
       ]);
 
-      test_api(app, "/event", http::Method::GET, None, Some(expected_response), StatusCode::OK, None).await;
+      let response = test_api(app, "/event", http::Method::GET, None, StatusCode::OK, None).await;
+      assert_eq!(response, Some(expected_response));
     }
 
     #[tokio::test]
@@ -413,7 +425,8 @@ mod test {
         }
       ]);
 
-      test_api(app, "/event?page=2&pageSize=1", http::Method::GET, None, Some(expected_response), StatusCode::OK, None).await;
+      let response = test_api(app, "/event?page=2&pageSize=1", http::Method::GET, None, StatusCode::OK, None).await;
+      assert_eq!(response, Some(expected_response));
     }
   }
 
@@ -428,7 +441,7 @@ mod test {
         "description": "some description 1",
       });
 
-      test_api(app, "/event/1", http::Method::PUT, Some(body_json), None, StatusCode::OK, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/event/1", http::Method::PUT, Some(body_json), StatusCode::OK, Some(("1", "username1"))).await;
 
       let result = sqlx::query!("select * from event where id = 1")
         .fetch_one(&pool)
@@ -447,36 +460,40 @@ mod test {
     async fn simple() {
       let (app, pool) = setup_with_data().await;
 
-      test_api(app, "/event/3", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("4", "username4"))).await;
+      let events = sqlx::query!("SELECT COUNT(id) as cnt FROM event")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      let _ = test_api(app, "/event/3", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("4", "username4"))).await;
 
       let results = sqlx::query!("select * from event")
         .fetch_all(&pool)
         .await
         .unwrap();
 
-      assert_eq!(results.len(), 2);
-      assert_eq!(results[0].id, 1);
-      assert_eq!(results[0].name, "event-1");
-      assert_eq!(results[1].id, 2);
-      assert_eq!(results[1].name, "event-2");
+      assert_eq!(results.len(), events.cnt as usize - 1);
+      assert!(results.iter().all(|r| r.id != 3 && r.name != "event-3"));
     }
 
     #[tokio::test]
     async fn with_fk() {
       let (app, pool) = setup_with_data().await;
 
-      test_api(app, "/event/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let events = sqlx::query!("SELECT COUNT(id) as cnt FROM event")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      let _ = test_api(app, "/event/1", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let results = sqlx::query!("select * from event")
         .fetch_all(&pool)
         .await
         .unwrap();
 
-      assert_eq!(results.len(), 2);
-      assert_eq!(results[0].id, 2);
-      assert_eq!(results[0].name, "event-2");
-      assert_eq!(results[1].id, 3);
-      assert_eq!(results[1].name, "event-3");
+        assert_eq!(results.len(), events.cnt as usize - 1);
+        assert!(results.iter().all(|r| r.id != 1 && r.name != "event-1"));
 
       //TODO cleanup checks
     }

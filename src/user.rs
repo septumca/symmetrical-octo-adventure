@@ -35,6 +35,12 @@ pub struct UserAuthRespData {
   token: String,
 }
 
+#[derive(Serialize, Debug, Clone)]
+pub struct UsedRequirements {
+  name: String,
+  score: i64,
+}
+
 pub async fn create(
   Json(payload): Json<CreateUser>,
   Extension(pool): Extension<DbState>,
@@ -80,6 +86,30 @@ pub async fn single(
     Some(u) => Ok((StatusCode::OK, Json(u))),
     None => Err(AppError::NotFound(format!("{id}"))),
   }
+}
+
+pub async fn used_requirements(
+  Path(id): Path<i64>,
+  Extension(pool): Extension<DbState>,
+  UserAuth(auth_userid): UserAuth,
+) -> AppReponse<Json<Vec<UsedRequirements>>> {
+  user_action_authorization(id, auth_userid, "cannot get requirements of another user")?;
+
+  let requirements = sqlx::query_as!(UsedRequirements,
+      r#"
+  SELECT COUNT(requirement.name) AS score, requirement.name
+  FROM requirement
+  JOIN event ON requirement.event = event.id
+  WHERE event.creator = ?1
+  GROUP BY requirement.name
+  LIMIT 10
+      "#,
+      id
+    )
+    .fetch_all(&pool)
+    .await?;
+
+  Ok((StatusCode::OK, Json(requirements)))
 }
 
 // pub async fn all(
@@ -161,6 +191,7 @@ pub async fn authentificate(
   Ok((StatusCode::OK, Json(resp)))
 }
 
+
 #[cfg(test)]
 mod test {
   use super::*;
@@ -183,7 +214,8 @@ mod test {
         "username": "Janko Hrasko"
       });
 
-      test_api(app, "/register", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, None).await;
+      let response = test_api(app, "/register", http::Method::POST, Some(body_json), StatusCode::CREATED, None).await;
+      assert_eq!(response, Some(expected_response));
     }
   }
 
@@ -198,7 +230,63 @@ mod test {
         "username": "username1"
       });
 
-      test_api(app, "/user/1", http::Method::GET, None, Some(expected_response), StatusCode::OK, Some(("1", "username1"))).await;
+      let response = test_api(app, "/user/1", http::Method::GET, None, StatusCode::OK, Some(("1", "username1"))).await;
+      assert_eq!(response, Some(expected_response));
+    }
+
+    mod used_requirements {
+      use super::*;
+
+      #[tokio::test]
+      async fn none() {
+        let (app, _) = setup_with_data().await;
+        let expected_response = json!([]);
+
+        let response = test_api(app, "/user/3/requirements", http::Method::GET, None, StatusCode::OK, Some(("3", "username3"))).await;
+        assert_eq!(response, Some(expected_response));
+      }
+
+      #[tokio::test]
+      async fn over_limit() {
+        let (app, pool) = setup_with_data().await;
+
+        for i in 0..15 {
+          let sql = format!(r#"INSERT INTO requirement (name, description, event, size) VALUES ("req-insert-{i}", "req1-desc", ?1, 2)"#);
+          let _ = sqlx::QueryBuilder::new(sql)
+            .build()
+            .bind(1)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let response = test_api(app, "/user/1/requirements", http::Method::GET, None, StatusCode::OK, Some(("1", "username1"))).await;
+        assert_eq!(response.unwrap().as_array().unwrap().len(), 10);
+      }
+
+      #[tokio::test]
+      async fn standard() {
+        let (app, _) = setup_with_data().await;
+        let expected_response = json!([
+          {
+            "name": "req1",
+            "score": 2,
+          },
+          {
+            "name": "req2",
+            "score": 1,
+          }
+        ]);
+
+        let response = test_api(app, "/user/1/requirements", http::Method::GET, None, StatusCode::OK, Some(("1", "username1"))).await;
+        assert_eq!(response, Some(expected_response));
+      }
+
+      #[tokio::test]
+      async fn for_another() {
+        let (app, _) = setup_with_data().await;
+        let _ = test_api(app, "/user/1/requirements", http::Method::GET, None, StatusCode::FORBIDDEN, Some(("2", "username2"))).await;
+      }
     }
   }
 
@@ -211,7 +299,7 @@ mod test {
       let body_json = json!({
         "username": "edited_username",
       });
-      test_api(app, "/user/1", http::Method::PUT, Some(body_json), None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/user/1", http::Method::PUT, Some(body_json), StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let result = sqlx::query!("select * from user where id = 1")
         .fetch_one(&pool)
@@ -227,7 +315,7 @@ mod test {
       let body_json = json!({
         "username": "edited_username",
       });
-      test_api(app, "/user/2", http::Method::PUT, Some(body_json), None, StatusCode::UNAUTHORIZED, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/user/2", http::Method::PUT, Some(body_json), StatusCode::FORBIDDEN, Some(("1", "username1"))).await;
     }
   }
 
@@ -237,7 +325,7 @@ mod test {
     #[tokio::test]
     async fn simple() {
       let (app, pool) = setup_with_data().await;
-      test_api(app, "/user/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/user/1", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let results = sqlx::query!("select * from user")
         .fetch_all(&pool)
@@ -255,7 +343,7 @@ mod test {
     #[tokio::test]
     async fn with_fk() {
       let (app, pool) = setup_with_data().await;
-      test_api(app, "/user/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/user/1", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("1", "username1"))).await;
 
       let results = sqlx::query!("select * from user")
         .fetch_all(&pool)
@@ -275,7 +363,7 @@ mod test {
     #[tokio::test]
     async fn for_another() {
       let (app, _) = setup_with_data().await;
-      test_api(app, "/user/2", http::Method::DELETE, None, None, StatusCode::UNAUTHORIZED, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/user/2", http::Method::DELETE, None, StatusCode::FORBIDDEN, Some(("1", "username1"))).await;
     }
   }
 }

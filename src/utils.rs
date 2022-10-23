@@ -45,7 +45,7 @@ pub mod test {
   use sqlx::{SqlitePool};
 
 
-  pub async fn test_api(app: Router, uri: &str, method: Method, body: Option<Value>, expected_response: Option<Value>, expected_status: StatusCode, auth: Option<(&str, &str)>) {
+  pub async fn test_api(app: Router, uri: &str, method: Method, body: Option<Value>, expected_status: StatusCode, auth: Option<(&str, &str)>) -> Option<Value> {
     let body = body.and_then(|b| Some(Body::from(serde_json::to_vec(&b).unwrap()))).unwrap_or(Body::empty());
     let mut req = Request::builder()
       .method(method)
@@ -67,11 +67,13 @@ pub mod test {
 
     assert_eq!(response.status(), expected_status);
 
-    if let Some(expected_response) = expected_response {
-      let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-      let body: Value = serde_json::from_slice(&body).unwrap();
-      assert_eq!(body, expected_response);
-    }
+    let body: Result<Value, Box<dyn std::error::Error>> = async {
+      let body = hyper::body::to_bytes(response.into_body()).await?;
+      let body: Value = serde_json::from_slice(&body)?;
+      Ok(body)
+    }.await;
+
+    body.ok()
   }
 
   pub async fn setup() -> (Router, SqlitePool) {

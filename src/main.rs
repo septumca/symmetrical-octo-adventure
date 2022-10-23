@@ -49,6 +49,7 @@ pub async fn app(pool: Pool<Sqlite>) -> Router {
 
     // .route("/user", get(user::all))
     .route("/user/:id", get(user::single))
+    .route("/user/:id/requirements", get(user::used_requirements))
     .route("/user/:id", put(user::update))
     .route("/user/:id", delete(user::delete))
 

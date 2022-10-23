@@ -4,7 +4,7 @@ use axum::{
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::{DbState, utils::AppReponse, error::AppError, auth::UserAuth};
+use crate::{DbState, utils::AppReponse, error::AppError, auth::{UserAuth, user_action_authorization}};
 
 #[derive(Deserialize)]
 pub struct CreateParticipant {
@@ -25,9 +25,7 @@ pub async fn create(
   UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<Json<CreateParticipantResponse>> {
   let CreateParticipant { event, user } = payload;
-  if user != auth_userid {
-    return Err(AppError::Unauthorized(format!("cannot make participation for another user")));
-  }
+  user_action_authorization(user, auth_userid, "cannot make participation for another user")?;
 
   let selected_user = sqlx::query!(
       r#"
@@ -95,7 +93,7 @@ mod test {
         "user": 1,
       });
 
-      test_api(app, "/participant", http::Method::POST, Some(body_json), None, StatusCode::UNAUTHORIZED, None).await;
+      let _ = test_api(app, "/participant", http::Method::POST, Some(body_json), StatusCode::UNAUTHORIZED, None).await;
     }
 
     #[tokio::test]
@@ -110,7 +108,8 @@ mod test {
         "username": "username1"
       });
 
-      test_api(app, "/participant", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("1", "username1"))).await;
+      let response = test_api(app, "/participant", http::Method::POST, Some(body_json), StatusCode::CREATED, Some(("1", "username1"))).await;
+      assert_eq!(response, Some(expected_response));
 
       let results = sqlx::query!("select * from participant where event = 3 and user = 1")
         .fetch_all(&pool)
@@ -121,14 +120,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn for_anothe() {
+    async fn for_another() {
       let (app, _) = setup_with_data().await;
       let body_json = json!({
         "event": 3,
         "user": 6,
       });
 
-      test_api(app, "/participant", http::Method::POST, Some(body_json), None, StatusCode::UNAUTHORIZED, Some(("1", "username1"))).await;
+      let _ = test_api(app, "/participant", http::Method::POST, Some(body_json), StatusCode::FORBIDDEN, Some(("1", "username1"))).await;
     }
   }
 
@@ -139,7 +138,7 @@ mod test {
     async fn simple() {
       let (app, pool) = setup_with_data().await;
 
-      test_api(app, "/participant/3/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("3", "username3"))).await;
+      let _ = test_api(app, "/participant/3/1", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("3", "username3"))).await;
 
       let results = sqlx::query!("select user, event from participant")
         .fetch_all(&pool)

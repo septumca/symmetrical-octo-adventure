@@ -129,7 +129,8 @@ mod fullfillment {
         }
       });
 
-      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("6", "username6"))).await;
+      let response = test_api(app, "/fullfillment", http::Method::POST, Some(body_json), StatusCode::CREATED, Some(("6", "username6"))).await;
+      assert_eq!(response, Some(expected_response));
     }
 
     #[tokio::test]
@@ -147,7 +148,8 @@ mod fullfillment {
         }
       });
 
-      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), Some(expected_response), StatusCode::CREATED, Some(("6", "username6"))).await;
+      let response = test_api(app, "/fullfillment", http::Method::POST, Some(body_json), StatusCode::CREATED, Some(("6", "username6"))).await;
+      assert_eq!(response, Some(expected_response));
     }
 
     #[tokio::test]
@@ -158,7 +160,7 @@ mod fullfillment {
         "user": 6,
       });
 
-      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::NOT_FOUND, Some(("6", "username6"))).await;
+      let _ = test_api(app, "/fullfillment", http::Method::POST, Some(body_json), StatusCode::NOT_FOUND, Some(("6", "username6"))).await;
     }
 
     #[tokio::test]
@@ -169,7 +171,7 @@ mod fullfillment {
         "user": 6,
       });
 
-      test_api(app, "/fullfillment", http::Method::POST, Some(body_json), None, StatusCode::INTERNAL_SERVER_ERROR, Some(("6", "username6"))).await;
+      let _ = test_api(app, "/fullfillment", http::Method::POST, Some(body_json), StatusCode::INTERNAL_SERVER_ERROR, Some(("6", "username6"))).await;
     }
   }
 
@@ -180,7 +182,7 @@ mod fullfillment {
     async fn simple() {
       let (app, pool) = setup_with_data().await;
 
-      test_api(app, "/fullfillment/4/1", http::Method::DELETE, None, None, StatusCode::NO_CONTENT, Some(("4", "username4"))).await;
+      let _ = test_api(app, "/fullfillment/4/1", http::Method::DELETE, None, StatusCode::NO_CONTENT, Some(("4", "username4"))).await;
 
       let results = sqlx::query!("select user, requirement from fullfillment")
         .fetch_all(&pool)
