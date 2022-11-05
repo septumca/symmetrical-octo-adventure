@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS event (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    time INTEGER NOT NULL,
     creator INTEGER NOT NULL,
     FOREIGN KEY(creator) REFERENCES user(id)
 );

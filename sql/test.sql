@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS event (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    time INTEGER NOT NULL,
     creator INTEGER NOT NULL,
     FOREIGN KEY(creator) REFERENCES user(id)
 );
@@ -50,10 +51,10 @@ INSERT INTO user (id, username, password, salt) VALUES (3, 'username3', 'db6a21c
 INSERT INTO user (id, username, password, salt) VALUES (4, 'username4', '968e608577eedcfcc4a7f1418b2a76c12884c305d5b6b18269827ad25d7299', 'gL9m51s4');
 INSERT INTO user (id, username, password, salt) VALUES (5, 'username5', 'dee1bc54771caa7cfce48eac3f8c3e781781864c7c63fbcca077feb7bca6e4c', 'qADT#zEn');
 INSERT INTO user (id, username, password, salt) VALUES (6, 'username6', 'd5e6a29c675d797d57a2644a2f2ae223c8744ae11c5233ce417426fbb1158', '!hk)fsQu');
-INSERT INTO event (id, name, description, creator) VALUES (1, 'event-1', 'some description 1', 1);
-INSERT INTO event (id, name, description, creator) VALUES (2, 'event-2', 'some description 2', 6);
-INSERT INTO event (id, name, description, creator) VALUES (3, 'event-3', 'some description 3', 4);
-INSERT INTO event (id, name, description, creator) VALUES (4, 'event-4', 'some description 4', 1);
+INSERT INTO event (id, name, description, creator, time) VALUES (1, 'event-1', 'some description 1', 1, 1664928000);
+INSERT INTO event (id, name, description, creator, time) VALUES (2, 'event-2', 'some description 2', 6, 1664928000);
+INSERT INTO event (id, name, description, creator, time) VALUES (3, 'event-3', 'some description 3', 4, 1664928000);
+INSERT INTO event (id, name, description, creator, time) VALUES (4, 'event-4', 'some description 4', 1, 1664928000);
 INSERT INTO participant (user, event) VALUES (2, 1);
 INSERT INTO participant (user, event) VALUES (3, 1);
 INSERT INTO participant (user, event) VALUES (3, 2);

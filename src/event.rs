@@ -9,6 +9,7 @@ use crate::{DbState, error::{AppError}, db_modeling::{Updatable, self}, user::Us
 #[derive(Serialize)]
 pub struct UpdateEventResponse {
   name: Option<String>,
+  time: Option<i64>,
   description: Option<String>,
 }
 
@@ -17,6 +18,7 @@ pub struct DbEvent {
   id: i64,
   name: String,
   description: Option<String>,
+  time: i64,
   creator: i64,
   username: String,
 }
@@ -26,6 +28,7 @@ pub struct Event {
   id: i64,
   name: String,
   description: Option<String>,
+  time: i64,
   creator: User,
 }
 
@@ -35,6 +38,7 @@ pub struct EventDetail {
   id: i64,
   name: String,
   description: Option<String>,
+  time: i64,
   participants: Vec<User>,
   requirements: Vec<Requirement>,
   fullfillments: Vec<Fullfillment>,
@@ -68,15 +72,15 @@ pub async fn create(
   Extension(pool): Extension<DbState>,
   UserAuth(auth_userid): UserAuth,
 ) -> AppReponse<Json<Event>> {
-  let CreateEvent { name, description, creator } = payload;
+  let CreateEvent { name, description, time, creator } = payload;
   user_action_authorization(creator, auth_userid, "cannot create event as another user")?;
 
   let id = sqlx::query!(
       r#"
-  INSERT INTO event ( name, description, creator )
-  VALUES ( ?1, ?2, ?3 )
+  INSERT INTO event ( name, description, time,creator )
+  VALUES ( ?1, ?2, ?3, ?4 )
       "#,
-      name, description, creator
+      name, description, time, creator
     )
     .execute(&pool)
     .await?
@@ -100,7 +104,8 @@ pub async fn create(
     creator: User {
       id: creator,
       username: user.username
-    }
+    },
+    time,
   };
 
   Ok((StatusCode::CREATED, Json(event)))
@@ -112,7 +117,7 @@ pub async fn single(
 ) -> AppReponse<Json<EventDetail>> {
   let event = sqlx::query_as!(DbEvent,
       r#"
-  SELECT event.id, name, description, creator, user.username
+  SELECT event.id, name, description, time, creator, user.username
   FROM event
   JOIN user ON event.creator = user.id
   WHERE event.id = ?1
@@ -172,6 +177,7 @@ pub async fn single(
       id,
       name: d.name,
       description: d.description,
+      time: d.time,
       creator: User {
         id: d.creator,
         username: d.username,
@@ -197,7 +203,7 @@ pub async fn all(
   Extension(pool): Extension<DbState>,
   Query(params): Query<EventSearchParam>
 ) -> AppReponse<Json<Vec<Event>>> {
-  let mut sql = "SELECT event.id, name, description, creator, user.username
+  let mut sql = "SELECT event.id, name, description, creator, time, user.username
   FROM event
   JOIN user ON event.creator = user.id ".to_owned();
   if let (Some(page), Some(page_size)) = (params.page, params.pageSize) {
@@ -213,6 +219,7 @@ pub async fn all(
       id: dbevent.id,
       name: dbevent.name,
       description: dbevent.description,
+      time: dbevent.time,
       creator: User {
         id: dbevent.creator,
         username: dbevent.username,
@@ -243,6 +250,7 @@ pub async fn update(
 
   let response = UpdateEventResponse {
     name: payload.name,
+    time: payload.time,
     description: payload.description,
   };
 
@@ -266,6 +274,7 @@ pub async fn delete(
 pub struct CreateEvent {
   name : String,
   description: Option<String>,
+  time: i64,
   creator: i64,
 }
 
@@ -273,6 +282,7 @@ pub struct CreateEvent {
 pub struct UpdateEvent {
   name: Option<String>,
   description: Option<String>,
+  time: Option<i64>,
 }
 
 impl Updatable for UpdateEvent {
@@ -284,11 +294,14 @@ impl Updatable for UpdateEvent {
     if let Some(description) = &self.description {
       updates.push(format!("description = '{description}'"));
     }
+    if let Some(time) = &self.time {
+      updates.push(format!("time = {time}"));
+    }
     updates.join(", ")
   }
 
   fn validate(&self) -> bool {
-    self.name.is_some() || self.description.is_some()
+    self.name.is_some() || self.description.is_some() || self.time.is_some()
   }
 }
 
@@ -308,12 +321,14 @@ mod test {
       let body_json = json!({
         "name": "my new event",
         "description": "my event description",
+        "time": 1664928000,
         "creator": 1
       });
       let expected_response = json!({
         "id": 1,
         "name": "my new event",
         "description": "my event description",
+        "time": 1664928000,
         "creator": {
           "id": 1,
           "username": "username1"
@@ -357,7 +372,8 @@ mod test {
         "creator": {
           "id": 1,
           "username": "username1"
-        }
+        },
+        "time": 1664928000
       });
 
       let response = test_api(app, "/event/1", http::Method::GET, None, StatusCode::OK, None).await;
@@ -375,7 +391,8 @@ mod test {
           "creator": {
             "id": 1,
             "username": "username1"
-          }
+          },
+          "time": 1664928000
         },
         {
           "id": 2,
@@ -384,7 +401,8 @@ mod test {
           "creator": {
             "id": 6,
             "username": "username6"
-          }
+          },
+          "time": 1664928000
         },
         {
           "id": 3,
@@ -393,7 +411,8 @@ mod test {
           "creator": {
             "id": 4,
             "username": "username4"
-          }
+          },
+          "time": 1664928000
         },
         {
           "id": 4,
@@ -402,7 +421,8 @@ mod test {
           "creator": {
             "id": 1,
             "username": "username1"
-          }
+          },
+          "time": 1664928000
         }
       ]);
 
@@ -421,7 +441,8 @@ mod test {
           "creator": {
             "id": 6,
             "username": "username6"
-          }
+          },
+          "time": 1664928000
         }
       ]);
 
@@ -450,6 +471,23 @@ mod test {
 
       assert_eq!(result.name, "edited name event 1");
       assert_eq!(result.description, Some("some description 1".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn time() {
+      let (app, pool) = setup_with_data().await;
+      let body_json = json!({
+        "time": 1633392000,
+      });
+
+      let _ = test_api(app, "/event/1", http::Method::PUT, Some(body_json), StatusCode::OK, Some(("1", "username1"))).await;
+
+      let result = sqlx::query!("select * from event where id = 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+      assert_eq!(result.time, 1633392000);
     }
   }
 
